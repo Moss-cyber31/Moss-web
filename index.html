@@ -719,7 +719,10 @@
     function deleteTask(id) {
       const t = tasks.find(x => x.id === id);
       if (t) { t._del = true; t._ts = Date.now(); } // 标记删除（带时间戳），随同步传播到另一端，不会复活
-      saveTasks(); renderTasks();
+      saveTasks();
+      renderTasks();
+      // 灵感记录也可能被删除，必须同时刷新灵感列表，否则点了✕还在（看起来“删不掉”）
+      if (typeof renderInspiration === 'function') renderInspiration();
     }
     function addTask() {
       const input = document.getElementById('new-task-input');
