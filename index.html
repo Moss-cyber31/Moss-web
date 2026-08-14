@@ -627,6 +627,8 @@
           <button onclick="syncNow()" class="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg py-2 text-sm font-medium transition">立即同步</button>
         </div>
         <button onclick="publishSite()" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg py-2 text-sm font-medium transition">🚀 发布到网页（变 APP）</button>
+        <button onclick="diagnoseSync()" class="w-full bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-lg py-2 text-sm font-medium transition">🔍 诊断同步（一键查哪里出错）</button>
+        <div id="diag-box" class="hidden mt-2 bg-gray-50 border border-gray-200 rounded-lg p-3 text-xs text-gray-700 whitespace-pre-wrap leading-relaxed"></div>
         <p id="sync-msg" class="text-xs text-gray-500 min-h-[1rem]"></p>
       </div>
     </div>
@@ -1666,6 +1668,57 @@
       } catch (e) {
         setSyncMsg('发布失败：' + friendlyErr(e));
       }
+    }
+
+    async function diagnoseSync() {
+      const box = document.getElementById('diag-box');
+      box.classList.remove('hidden');
+      const c = getSyncConfig();
+      const lines = [];
+      const ok = (s) => '✅ ' + s;
+      const bad = (s) => '❌ ' + s;
+      lines.push('==== 同步诊断 ====');
+      // 1. 本地配置
+      if (!c.token) lines.push(bad('未填写 Token'));
+      else lines.push(ok('已填写 Token（' + c.token.slice(0, 4) + '… 共 ' + c.token.length + ' 位）'));
+      if (!c.username) lines.push(bad('未填写 GitHub 用户名'));
+      else lines.push(ok('用户名：' + c.username));
+      if (!c.repo) lines.push(bad('未填写「数据仓库名」'));
+      else lines.push(ok('数据仓库名：' + c.repo));
+      if (!c.username || !c.repo || !c.token) {
+        lines.push('\n请先把上面的三项填好再诊断。');
+        box.textContent = lines.join('\n'); return;
+      }
+      const branch = c.branch || 'main';
+      const auth = { 'Authorization': 'Bearer ' + c.token, 'Accept': 'application/vnd.github+json' };
+      // 2. token 是否有效
+      lines.push('\n-- 验证 Token --');
+      try {
+        const r = await fetch('https://api.github.com/user', { headers: auth });
+        if (r.ok) { const j = await r.json(); lines.push(ok('Token 有效，归属账号：' + j.login)); if (j.login.toLowerCase() !== c.username.toLowerCase()) lines.push(bad('Token 所属账号(' + j.login + ') 与填写的用户名(' + c.username + ') 不一致！')); }
+        else { const t = await r.text(); lines.push(bad('Token 无效或被撤销（HTTP ' + r.status + '）。请去 GitHub 重新生成 Token。')); box.textContent = lines.join('\n'); return; }
+      } catch (e) { lines.push(bad('无法连接 GitHub：' + friendlyErr(e))); box.textContent = lines.join('\n'); return; }
+      // 3. 仓库是否可达
+      lines.push('\n-- 验证数据仓库 --');
+      try {
+        const r = await fetch('https://api.github.com/repos/' + c.username + '/' + encodeURIComponent(c.repo), { headers: auth });
+        if (r.ok) { const j = await r.json(); lines.push(ok('仓库存在，' + (j.private ? '私人' : '公开') + '，默认分支：' + j.default_branch)); if (j.default_branch !== branch) lines.push(bad('你填的分支是 "' + branch + '"，但仓库默认分支是 "' + j.default_branch + '"，请改一致！')); }
+        else { const t = await r.text(); lines.push(bad('找不到仓库「' + c.repo + '」（HTTP ' + r.status + '）。请确认仓库名没有拼写错、且 Token 账号拥有它。')); box.textContent = lines.join('\n'); return; }
+      } catch (e) { lines.push(bad('无法连接 GitHub：' + friendlyErr(e))); box.textContent = lines.join('\n'); return; }
+      // 4. 数据文件是否存在
+      lines.push('\n-- 验证云端数据 --');
+      try {
+        const r = await fetch('https://api.github.com/repos/' + c.username + '/' + encodeURIComponent(c.repo) + '/contents/moss-data.json?ref=' + branch, { headers: auth });
+        if (r.status === 404) lines.push(bad('云端还没有 moss-data.json —— 说明数据从未成功上传。点「立即同步」即可上传。'));
+        else if (r.ok) { const j = await r.json(); const obj = JSON.parse(b64decode(j.content)); const langs = (obj.mossLanguages || []).length; lines.push(ok('云端已有数据文件，其中语言：' + langs + ' 门、任务：' + (obj.mossTasks || []).length + ' 条。')); }
+        else { const t = await r.text(); lines.push(bad('读取数据文件失败（HTTP ' + r.status + '）：' + t.slice(0, 80))); }
+      } catch (e) { lines.push(bad('读取数据文件出错：' + friendlyErr(e))); }
+      // 5. 本地 vs 云端
+      const localLangs = JSON.parse(localStorage.getItem('mossLanguages') || '[]').length;
+      lines.push('\n-- 本地当前 --');
+      lines.push('本机语言：' + localLangs + ' 门。');
+      lines.push('\n结论：根据上述检查，修正标 ❌ 的项后，点「立即同步」即可。两端都用同一套配置就能互通。');
+      box.textContent = lines.join('\n');
     }
 
     function schedulePush() {
