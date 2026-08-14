@@ -1,7 +1,7 @@
 // MOSS 工作台 · 离线缓存
 // 策略：所有同源 GET 一律「网络优先」，保证设备总能拿到最新页面/脚本；
 // 仅在断网时回退到缓存，从而实现离线可用。跨域（api.github.com 同步）不拦截，始终走网络。
-const CACHE = 'moss-v9';
+const CACHE = 'moss-v10';
 const ASSETS = ['./', './index.html', './manifest.webmanifest', './icon.svg', './sw.js'];
 
 self.addEventListener('install', event => {
