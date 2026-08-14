@@ -1,6 +1,6 @@
 // MOSS 工作台 · 离线缓存（仅缓存应用外壳，数据走 GitHub API，不缓存）
-const CACHE = 'moss-v1';
-const ASSETS = ['./', './moss-workbench.html', './manifest.webmanifest', './icon.svg'];
+const CACHE = 'moss-v2';
+const ASSETS = ['./', './index.html', './manifest.webmanifest', './icon.svg'];
 
 self.addEventListener('install', event => {
   event.waitUntil(
