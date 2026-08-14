@@ -1,0 +1,20 @@
+{
+  "name": "MOSS 工作台",
+  "short_name": "MOSS",
+  "description": "个人生产力工作台：雪山写作打卡、文学学习、语言周计划、锻炼打卡",
+  "lang": "zh-CN",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#064e3b",
+  "theme_color": "#064e3b",
+  "icons": [
+    {
+      "src": "./icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

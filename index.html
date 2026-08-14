@@ -1,0 +1,1687 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>MOSS 工作台</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <meta name="theme-color" content="#064e3b">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="MOSS">
+  <link rel="apple-touch-icon" href="icon.svg">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;500;700&display=swap');
+    body { font-family: 'Noto Sans SC', sans-serif; -webkit-tap-highlight-color: transparent; }
+    .app-shell { max-width: 480px; margin: 0 auto; min-height: 100vh; position: relative; }
+    .main-shell { max-width: 600px; margin: 0 auto; min-height: 100vh; padding-bottom: 1.5rem; }
+    .green-title { background: linear-gradient(135deg, #4a7c3f 0%, #3d6a34 100%); box-shadow: 0 4px 12px rgba(74,124,63,0.25); }
+    .task-row { transition: all 0.2s ease; }
+    .task-row:hover { background-color: #f3f4f6; }
+    .task-checkbox:checked + div { text-decoration: line-through; color: #9ca3af; }
+    .progress-fill { transition: width 0.4s ease; }
+    @keyframes floaty { 0%,100%{ transform: translateY(0); } 50%{ transform: translateY(-4px); } }
+    #dog { animation: floaty 2.6s ease-in-out infinite; transition: left 0.9s cubic-bezier(.34,1.4,.64,1), top 0.9s cubic-bezier(.34,1.4,.64,1); }
+    #dog.cheer { animation: floaty 0.5s ease-in-out infinite; }
+    @keyframes wag { 0%,100%{ transform: rotate(-12deg); } 50%{ transform: rotate(16deg); } }
+    .husky-tail { transform-origin: 20px 44px; animation: wag 0.9s ease-in-out infinite; }
+    #dog.cheer .husky-tail { animation: wag 0.35s ease-in-out infinite; }
+    #dog.sad .husky-tail { animation: none; transform: rotate(-22deg); }
+    .snow-fall { animation: snowfall 4s linear infinite; }
+    @keyframes snowfall { 0%{ transform: translateY(-10px); opacity:0; } 20%{opacity:1;} 100%{ transform: translateY(22px); opacity:0; } }
+    @keyframes drift { from{ transform: translateX(-8px);} to{ transform: translateX(14px);} }
+    .cloud { animation: drift 9s ease-in-out infinite alternate; }
+    .cloud2 { animation: drift 11s ease-in-out infinite alternate-reverse; }
+    .dashboard-card { transition: transform .15s ease, box-shadow .15s ease; }
+    .dashboard-card:active { transform: scale(0.97); }
+    .hide-scrollbar::-webkit-scrollbar { display: none; }
+    .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+    .nav-item.active { color: #4a7c3f; }
+    .nav-item.active .nav-dot { opacity: 1; transform: scale(1); }
+    .nav-dot { opacity: 0; transform: scale(0); transition: all .2s ease; }
+    /* 侧边栏高亮（深绿底上的白字） */
+    .sidebar .nav-item { color: rgba(255,255,255,0.82); }
+    .sidebar .nav-item.active { background: rgba(255,255,255,0.18); color: #ffffff; }
+  </style>
+</head>
+<body class="bg-[#7a9e7e]">
+
+  <div class="flex min-h-screen">
+
+    <!-- ========== 左侧竖向列表导航 ========== -->
+    <aside class="sidebar hidden md:flex w-60 shrink-0 flex-col bg-[#3d6a34] text-white p-5 sticky top-0 h-screen">
+      <div class="mb-8">
+        <h1 class="text-xl font-bold tracking-wide">MOSS 工作台</h1>
+        <p id="header-date" class="text-white/70 text-xs mt-1"></p>
+      </div>
+      <nav class="flex-1 space-y-1">
+        <button onclick="filterTasks('dashboard')" data-nav="dashboard" class="nav-item flex items-center gap-3 px-4 py-3 rounded-2xl hover:bg-white/10 transition w-full text-left">
+          <span class="text-xl">🏠</span><span class="font-medium">全部事项</span>
+        </button>
+        <button onclick="filterTasks('writing')" data-nav="writing" class="nav-item flex items-center gap-3 px-4 py-3 rounded-2xl hover:bg-white/10 transition w-full text-left">
+          <span class="text-xl">🐕</span><span class="font-medium">网文写作</span>
+        </button>
+        <button onclick="filterTasks('literature')" data-nav="literature" class="nav-item flex items-center gap-3 px-4 py-3 rounded-2xl hover:bg-white/10 transition w-full text-left">
+          <span class="text-xl">📚</span><span class="font-medium">文学学习</span>
+        </button>
+        <button onclick="filterTasks('language')" data-nav="language" class="nav-item flex items-center gap-3 px-4 py-3 rounded-2xl hover:bg-white/10 transition w-full text-left">
+          <span class="text-xl">🌍</span><span class="font-medium">语言学习</span>
+        </button>
+        <button onclick="filterTasks('exercise')" data-nav="exercise" class="nav-item flex items-center gap-3 px-4 py-3 rounded-2xl hover:bg-white/10 transition w-full text-left">
+          <span class="text-xl">💪</span><span class="font-medium">锻炼</span>
+        </button>
+      </nav>
+      <button onclick="openSyncSettings()" class="mt-4 w-full flex items-center justify-center gap-2 bg-white/15 hover:bg-white/25 rounded-2xl py-3 transition">
+        <span>🔄</span><span class="text-sm font-medium">跨设备同步</span>
+      </button>
+    </aside>
+
+    <!-- ========== 主内容区（App 卡片风格） ========== -->
+    <div class="flex-1 min-w-0">
+      <div class="main-shell">
+
+        <!-- 顶部标题栏（移动端品牌 + 同步） -->
+        <header class="sticky top-0 z-40 px-5 py-4 flex items-center justify-between md:hidden">
+          <div>
+            <h1 class="text-white text-xl font-bold tracking-wide">MOSS 工作台</h1>
+          </div>
+          <button onclick="openSyncSettings()" class="w-10 h-10 rounded-full bg-white/20 hover:bg-white/30 text-white flex items-center justify-center transition backdrop-blur-sm" title="跨设备同步">
+            <span class="text-lg">🔄</span>
+          </button>
+        </header>
+
+        <!-- ========== 仪表盘（首页网格卡片） ========== -->
+        <div id="dashboard-view" class="px-5 space-y-4">
+
+          <!-- 欢迎横幅 -->
+          <div class="bg-white rounded-3xl p-5 shadow-sm flex items-start gap-4 dashboard-card">
+            <div class="w-12 h-12 rounded-2xl green-title flex items-center justify-center text-white text-2xl shrink-0">📋</div>
+            <div class="flex-1 min-w-0">
+              <h2 class="text-lg font-bold text-gray-800">MOSS 工作台</h2>
+              <p class="text-sm text-gray-500 mt-1">欢迎回来，今日待办完成 <span id="dash-progress" class="font-bold text-green-700">0/0</span> 项</p>
+              <div class="w-full bg-gray-100 rounded-full h-2 mt-3">
+                <div id="dash-bar" class="progress-fill bg-green-600 h-2 rounded-full" style="width: 0%"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 模块网格 -->
+          <div class="grid grid-cols-2 gap-3">
+            <!-- 全部事项 -->
+            <div onclick="filterTasks('dashboard')" class="dashboard-card bg-blue-50 rounded-3xl p-4 cursor-pointer border border-white/60">
+              <div class="w-10 h-10 rounded-xl bg-white flex items-center justify-center text-xl shadow-sm mb-3">🏠</div>
+              <h3 class="font-bold text-gray-800">全部事项</h3>
+              <p class="text-xs text-gray-500 mt-1 leading-relaxed">待办清单 · 勾选进度 · 日常任务</p>
+            </div>
+            <!-- 网文写作 -->
+            <div onclick="filterTasks('writing')" class="dashboard-card bg-amber-50 rounded-3xl p-4 cursor-pointer border border-white/60">
+              <div class="w-10 h-10 rounded-xl bg-white flex items-center justify-center text-xl shadow-sm mb-3">🐕</div>
+              <h3 class="font-bold text-gray-800">网文写作</h3>
+              <p class="text-xs text-gray-500 mt-1 leading-relaxed">雪山登顶 · 字数打卡 · 灵感记录</p>
+            </div>
+            <!-- 文学学习 -->
+            <div onclick="filterTasks('literature')" class="dashboard-card bg-pink-50 rounded-3xl p-4 cursor-pointer border border-white/60">
+              <div class="w-10 h-10 rounded-xl bg-white flex items-center justify-center text-xl shadow-sm mb-3">📚</div>
+              <h3 class="font-bold text-gray-800">文学学习</h3>
+              <p class="text-xs text-gray-500 mt-1 leading-relaxed">本周读书 · 小说散文 · 诗词记录</p>
+            </div>
+            <!-- 语言学习 -->
+            <div onclick="filterTasks('language')" class="dashboard-card bg-emerald-50 rounded-3xl p-4 cursor-pointer border border-white/60">
+              <div class="w-10 h-10 rounded-xl bg-white flex items-center justify-center text-xl shadow-sm mb-3">🌍</div>
+              <h3 class="font-bold text-gray-800">语言学习</h3>
+              <p class="text-xs text-gray-500 mt-1 leading-relaxed">多门语言 · 打卡 streak · 每周计划</p>
+            </div>
+            <!-- 锻炼 -->
+            <div onclick="filterTasks('exercise')" class="dashboard-card bg-orange-50 rounded-3xl p-4 cursor-pointer border border-white/60">
+              <div class="w-10 h-10 rounded-xl bg-white flex items-center justify-center text-xl shadow-sm mb-3">💪</div>
+              <h3 class="font-bold text-gray-800">锻炼</h3>
+              <p class="text-xs text-gray-500 mt-1 leading-relaxed">每日运动 · 周目标 · 连续打卡</p>
+            </div>
+          </div>
+
+          <!-- 今日摘要 -->
+          <div class="bg-white/90 rounded-3xl p-5 shadow-sm">
+            <h3 class="font-bold text-gray-800 mb-3">📊 今日概览</h3>
+            <div class="grid grid-cols-2 gap-3">
+              <div class="bg-orange-50 rounded-2xl p-3">
+                <p class="text-xs text-gray-500">本月累计字数</p>
+                <p id="dash-words" class="text-lg font-bold text-gray-800 mt-1">0</p>
+              </div>
+              <div class="bg-purple-50 rounded-2xl p-3">
+                <p class="text-xs text-gray-500">在学语言</p>
+                <p id="dash-langs" class="text-lg font-bold text-gray-800 mt-1">0 门</p>
+              </div>
+              <div class="bg-indigo-50 rounded-2xl p-3">
+                <p class="text-xs text-gray-500">本周在读</p>
+                <p id="dash-book" class="text-lg font-bold text-gray-800 mt-1 truncate">未设定</p>
+              </div>
+              <div class="bg-rose-50 rounded-2xl p-3">
+                <p class="text-xs text-gray-500">灵感待办</p>
+                <p id="dash-insp" class="text-lg font-bold text-gray-800 mt-1">0</p>
+              </div>
+            </div>
+          </div>
+        </div><!-- /dashboard-view -->
+
+        <!-- ========== 模块详情页 ========== -->
+        <div id="detail-view" class="hidden px-5 pb-24 space-y-4">
+          <div class="sticky top-0 z-30 -mx-5 px-5 py-3 flex items-center justify-between bg-[#7a9e7e]">
+            <button onclick="backToDashboard()" class="w-9 h-9 rounded-full bg-white/20 hover:bg-white/30 text-white flex items-center justify-center transition">
+              ←
+            </button>
+            <h2 id="current-view" class="text-white font-bold text-lg">全部事项</h2>
+            <span id="topbar-hint" class="text-white/80 text-xs max-w-[120px] text-right leading-tight"></span>
+          </div>
+
+          <div id="detail-content" class="space-y-4">
+
+            <!-- ============ 任务面板（全部事项） ============ -->
+            <div id="task-panel">
+              <div class="bg-white rounded-3xl shadow-sm p-5">
+                <div class="flex items-center justify-between mb-4">
+                  <div>
+                    <h1 class="text-xl font-bold text-gray-800">今日计划</h1>
+                    <p class="text-gray-500 text-sm mt-1" id="date-display"></p>
+                  </div>
+                  <div class="text-right">
+                    <p class="text-2xl font-bold text-green-700" id="progress-percent">0%</p>
+                    <p class="text-gray-500 text-xs"><span id="completed-count">0</span> / <span id="total-count">0</span> 项完成</p>
+                  </div>
+                </div>
+                <div class="w-full bg-gray-100 rounded-full h-3">
+                  <div id="main-progress" class="progress-fill bg-gradient-to-r from-green-500 to-green-700 h-3 rounded-full" style="width: 0%"></div>
+                </div>
+              </div>
+
+              <div class="bg-white rounded-3xl shadow-sm p-5">
+                <div class="flex items-center gap-2 mb-4">
+                  <input type="text" id="new-task-input" placeholder="输入新任务，按回车添加..." 
+                    class="flex-1 border border-gray-200 rounded-2xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-green-500 bg-gray-50">
+                  <select id="new-task-category" class="border border-gray-200 rounded-2xl px-3 py-3 bg-gray-50 focus:outline-none focus:ring-2 focus:ring-green-500 text-sm">
+                    <option value="literature">文学</option>
+                    <option value="language">语言</option>
+                  </select>
+                  <button onclick="addTask()" class="bg-green-700 hover:bg-green-800 text-white rounded-2xl px-5 py-3 font-medium transition">添加</button>
+                </div>
+                <ul id="task-list" class="divide-y divide-gray-100"></ul>
+                <div id="empty-state" class="hidden text-center py-10 text-gray-400">
+                  <p class="text-4xl mb-3">🌱</p>
+                  <p class="text-sm">暂无任务，添加一项开始今天的工作吧</p>
+                </div>
+              </div>
+            </div>
+
+            <!-- ============ 网文写作 · 雪山打卡面板 ============ -->
+            <div id="writing-panel" class="hidden space-y-4">
+              <!-- 子页面切换 -->
+              <div class="bg-white rounded-3xl shadow-sm p-2 flex gap-2">
+                <button id="tab-climb" onclick="switchWritingTab('climb')" class="flex-1 py-3 rounded-2xl font-medium bg-green-700 text-white transition">⛰️ 字数打卡</button>
+                <button id="tab-inspiration" onclick="switchWritingTab('inspiration')" class="flex-1 py-3 rounded-2xl font-medium text-gray-600 hover:bg-gray-100 transition">✨ 灵感记录</button>
+              </div>
+
+              <!-- 打卡视图 -->
+              <div id="climb-view" class="space-y-4">
+                <div class="bg-white rounded-3xl shadow-sm p-5">
+                  <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                    <div>
+                      <h1 class="text-xl font-bold text-gray-800">网文写作 · 雪山登顶</h1>
+                      <p class="text-gray-500 text-sm mt-1" id="writing-date"></p>
+                    </div>
+                    <div class="flex items-center gap-2">
+                      <span class="text-gray-600 text-sm">本月目标</span>
+                      <input id="goal-input" type="number" min="1000" step="1000"
+                        class="w-28 border border-gray-200 rounded-2xl px-3 py-2 text-right focus:outline-none focus:ring-2 focus:ring-green-500 bg-gray-50">
+                      <span class="text-gray-600 text-sm">字</span>
+                      <button onclick="saveGoal()" class="bg-green-700 hover:bg-green-800 text-white rounded-2xl px-4 py-2 text-sm font-medium transition">设定</button>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="bg-white rounded-3xl shadow-sm p-5 flex flex-col md:flex-row gap-6 items-center">
+                  <div class="relative shrink-0" style="width:240px;height:320px;">
+                    <svg viewBox="0 0 240 320" width="240" height="320" class="absolute inset-0">
+                      <defs>
+                        <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stop-color="#1e3a5f"/>
+                          <stop offset="45%" stop-color="#4a72a8"/>
+                          <stop offset="100%" stop-color="#d6e8fa"/>
+                        </linearGradient>
+                        <linearGradient id="mtnBack" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stop-color="#b9c9de"/>
+                          <stop offset="100%" stop-color="#8fa6c2"/>
+                        </linearGradient>
+                        <linearGradient id="mtnMain" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="0%" stop-color="#ffffff"/>
+                          <stop offset="38%" stop-color="#e8eef6"/>
+                          <stop offset="100%" stop-color="#9fb2cb"/>
+                        </linearGradient>
+                      </defs>
+                      <rect width="240" height="320" fill="url(#sky)"/>
+                      <circle cx="38" cy="28" r="1.6" fill="#fff" opacity="0.85"/>
+                      <circle cx="195" cy="46" r="1.3" fill="#fff" opacity="0.7"/>
+                      <circle cx="150" cy="22" r="1" fill="#fff" opacity="0.6"/>
+                      <circle cx="90" cy="34" r="1.1" fill="#fff" opacity="0.65"/>
+                      <polygon points="0,205 68,118 140,205" fill="url(#mtnBack)" opacity="0.65"/>
+                      <polygon points="120,210 192,108 240,210" fill="url(#mtnBack)" opacity="0.55"/>
+                      <polygon points="14,310 120,28 226,310" fill="url(#mtnMain)"/>
+                      <polygon points="120,28 226,310 120,310" fill="#1b2a44" opacity="0.10"/>
+                      <polygon points="120,28 95,74 108,65 120,86 132,65 145,74" fill="#ffffff"/>
+                      <path d="M120,28 L120,310" stroke="#ffffff" stroke-width="1" opacity="0.35"/>
+                      <path d="M44,250 Q78,205 118,150" stroke="#7d93b0" stroke-width="1" fill="none" opacity="0.5"/>
+                      <path d="M196,250 Q160,205 122,150" stroke="#7d93b0" stroke-width="1" fill="none" opacity="0.5"/>
+                      <ellipse class="cloud" cx="78" cy="158" rx="42" ry="11" fill="#ffffff" opacity="0.22"/>
+                      <ellipse class="cloud2" cx="172" cy="128" rx="36" ry="9" fill="#ffffff" opacity="0.18"/>
+                      <g>
+                        <polygon points="28,302 38,282 48,302" fill="#2f5d3a"/>
+                        <polygon points="30,290 38,274 46,290" fill="#3a6e46"/>
+                        <rect x="36" y="302" width="4" height="9" fill="#6b4a2b"/>
+                        <polygon points="196,306 206,286 216,306" fill="#2f5d3a"/>
+                        <rect x="204" y="306" width="4" height="9" fill="#6b4a2b"/>
+                      </g>
+                      <path d="M40,300 Q70,200 120,40" stroke="#caa46a" stroke-width="3" stroke-dasharray="5 6" fill="none" opacity="0.85"/>
+                      <g>
+                        <line x1="62" y1="227" x2="62" y2="216" stroke="#5b4636" stroke-width="1.5"/>
+                        <polygon points="62,216 73,219 62,222" fill="#f59e0b"/>
+                        <text x="55" y="212" font-size="8" fill="#5b4636" font-weight="bold">⅓</text>
+                      </g>
+                      <g>
+                        <line x1="89" y1="140" x2="89" y2="129" stroke="#5b4636" stroke-width="1.5"/>
+                        <polygon points="89,129 100,132 89,135" fill="#f59e0b"/>
+                        <text x="82" y="125" font-size="8" fill="#5b4636" font-weight="bold">⅔</text>
+                      </g>
+                      <line x1="120" y1="28" x2="120" y2="6" stroke="#475569" stroke-width="2"/>
+                      <polygon points="120,6 139,12 120,18" fill="#ef4444"/>
+                    </svg>
+                    <div id="dog" class="absolute" style="left:8px; top:274px; width:64px; height:52px;">
+                      <svg viewBox="0 0 90 72" width="64" height="52">
+                        <g class="husky-tail">
+                          <path d="M18,42 Q3,38 9,24 Q15,15 24,30 Q22,40 18,42 Z" fill="#1f2937"/>
+                          <path d="M8,28 Q12,22 18,30 Q14,36 8,28 Z" fill="#d4a574"/>
+                        </g>
+                        <rect x="20" y="52" width="7" height="16" rx="3" fill="#1f2937"/>
+                        <rect x="21" y="64" width="5" height="5" rx="2" fill="#d4a574"/>
+                        <rect x="50" y="52" width="7" height="16" rx="3" fill="#1f2937"/>
+                        <rect x="51" y="64" width="5" height="5" rx="2" fill="#d4a574"/>
+                        <ellipse cx="40" cy="48" rx="28" ry="15" fill="#1f2937"/>
+                        <path d="M18,42 Q40,32 62,42 Q40,58 18,48 Z" fill="#e8d5b7" opacity="0.9"/>
+                        <path d="M58,42 Q66,32 73,34 L70,54 Q60,52 58,42 Z" fill="#1f2937"/>
+                        <circle cx="71" cy="33" r="14" fill="#1f2937"/>
+                        <path d="M62,33 Q71,28 84,36 Q82,46 72,47 Q60,45 62,33 Z" fill="#e8d5b7"/>
+                        <path d="M61,23 L59,5 L72,19 Z" fill="#1f2937"/>
+                        <path d="M61,23 L61,10 L69,18 Z" fill="#d4a574" opacity="0.5"/>
+                        <path d="M77,21 L85,7 L83,25 Z" fill="#1f2937"/>
+                        <path d="M77,21 L83,10 L81,23 Z" fill="#d4a574" opacity="0.5"/>
+                        <ellipse cx="67" cy="24" rx="2.5" ry="1.5" fill="#d4a574" opacity="0.8"/>
+                        <ellipse cx="78" cy="24" rx="2.5" ry="1.5" fill="#d4a574" opacity="0.8"/>
+                        <circle cx="69" cy="30" r="2.8" fill="#111"/>
+                        <circle cx="70" cy="29" r="1" fill="#fff"/>
+                        <circle cx="80" cy="30" r="2.8" fill="#111"/>
+                        <circle cx="81" cy="29" r="1" fill="#fff"/>
+                        <ellipse cx="85" cy="37" rx="3" ry="2.2" fill="#111"/>
+                        <path d="M85,39 Q81,43 76,41" stroke="#111" stroke-width="1.4" fill="none"/>
+                        <path d="M78,41 Q80,42 82,41" stroke="#111" stroke-width="1" fill="none"/>
+                      </svg>
+                    </div>
+                    <div class="snow-fall absolute text-white text-sm" style="left:30%; top:10%;">❄</div>
+                    <div class="snow-fall absolute text-white text-xs" style="left:60%; top:20%; animation-delay:1.5s;">❄</div>
+                    <div class="snow-fall absolute text-white text-sm" style="left:45%; top:35%; animation-delay:2.5s;">❄</div>
+                  </div>
+
+                  <div class="flex-1 w-full grid grid-cols-2 gap-3">
+                    <div class="bg-gray-50 rounded-2xl p-3">
+                      <p class="text-xs text-gray-500">每日目标</p>
+                      <p class="text-lg font-bold text-gray-800"><span id="stat-daily">0</span> 字/天</p>
+                    </div>
+                    <div class="bg-gray-50 rounded-2xl p-3">
+                      <p class="text-xs text-gray-500">今日已打卡</p>
+                      <p id="stat-today" class="text-lg font-bold text-gray-800">未打卡</p>
+                    </div>
+                    <div class="bg-gray-50 rounded-2xl p-3">
+                      <p class="text-xs text-gray-500">本月累计</p>
+                      <p class="text-lg font-bold text-gray-800"><span id="stat-total">0</span> 字</p>
+                    </div>
+                    <div class="bg-gray-50 rounded-2xl p-3">
+                      <p class="text-xs text-gray-500">距山顶</p>
+                      <p class="text-lg font-bold text-green-700"><span id="stat-remain">0</span> 字</p>
+                    </div>
+                    <div class="col-span-2 bg-green-50 rounded-2xl p-3 flex items-center gap-3">
+                      <span id="mood-emoji" class="text-2xl">🐕</span>
+                      <div>
+                        <p class="text-xs text-gray-500">雪橇犬心情</p>
+                        <p id="mood-text" class="font-bold text-green-800 text-sm">等待今天的第一次出发…</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div class="bg-white rounded-3xl shadow-sm p-5">
+                  <p class="text-gray-700 font-medium mb-3">今日字数打卡</p>
+                  <div class="flex items-center gap-3">
+                    <input id="today-words" type="number" min="0" step="100" placeholder="今天写了多少字？"
+                      class="flex-1 border border-gray-200 rounded-2xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-green-500 bg-gray-50">
+                    <button onclick="checkIn()" class="bg-green-700 hover:bg-green-800 text-white rounded-2xl px-6 py-3 font-bold transition">打卡 ⛰️</button>
+                  </div>
+                  <p id="checkin-msg" class="text-sm mt-3 text-gray-500"></p>
+                </div>
+              </div><!-- /climb-view -->
+
+              <div id="inspiration-view" class="hidden">
+                <div class="bg-white rounded-3xl shadow-sm p-5">
+                  <div class="flex items-center gap-2 mb-4">
+                    <input id="insp-input" type="text" placeholder="记下今天的灵感 / 选题…" class="flex-1 border border-gray-200 rounded-2xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-green-500 bg-gray-50">
+                    <button onclick="addInspiration()" class="bg-green-700 hover:bg-green-800 text-white rounded-2xl px-5 py-3 font-medium transition">添加</button>
+                  </div>
+                  <ul id="insp-list" class="divide-y divide-gray-100"></ul>
+                  <div id="insp-empty" class="hidden text-center py-10 text-gray-400">
+                    <p class="text-4xl mb-3">💡</p>
+                    <p>还没有灵感，记下第一个吧</p>
+                  </div>
+                </div>
+              </div>
+            </div><!-- /writing-panel -->
+
+            <!-- ============ 文学学习 · 本周读书面板 ============ -->
+            <div id="literature-panel" class="hidden space-y-4">
+              <div id="book-setup" class="bg-white rounded-3xl shadow-sm p-5">
+                <h1 class="text-xl font-bold text-gray-800 mb-1">📚 本周读书计划</h1>
+                <p class="text-gray-500 text-sm mb-4">设定这一周你要读的书，再选好它的题材，就能开工啦</p>
+                <input id="book-title-input" type="text" placeholder="书名，例如《百年孤独》"
+                  class="w-full border border-gray-200 rounded-2xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-green-500 bg-gray-50">
+                <p class="text-gray-600 text-sm mt-4 mb-2">这本书是什么题材？</p>
+                <div id="genre-picker" class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  <button type="button" onclick="pickGenre('novel')" data-genre="novel" class="genre-btn border border-gray-200 rounded-2xl py-3 px-2 text-center hover:border-green-500 transition">
+                    <div class="text-2xl">📖</div><div class="font-medium text-gray-700 mt-1">小说</div>
+                  </button>
+                  <button type="button" onclick="pickGenre('prose')" data-genre="prose" class="genre-btn border border-gray-200 rounded-2xl py-3 px-2 text-center hover:border-green-500 transition">
+                    <div class="text-2xl">📝</div><div class="font-medium text-gray-700 mt-1">散文集</div>
+                  </button>
+                  <button type="button" onclick="pickGenre('poetry')" data-genre="poetry" class="genre-btn border border-gray-200 rounded-2xl py-3 px-2 text-center hover:border-green-500 transition">
+                    <div class="text-2xl">🎴</div><div class="font-medium text-gray-700 mt-1">诗集</div>
+                  </button>
+                  <button type="button" onclick="pickGenre('other')" data-genre="other" class="genre-btn border border-gray-200 rounded-2xl py-3 px-2 text-center hover:border-green-500 transition">
+                    <div class="text-2xl">📚</div><div class="font-medium text-gray-700 mt-1">其他</div>
+                  </button>
+                </div>
+                <p class="text-gray-400 text-xs mt-4 mb-2">💡 设定后，下方会出现记录区——随时点绿色虚线「＋ 添加」按钮新增章节 / 篇 / 首，边写边自动存进本机，关掉也不丢。</p>
+                <button onclick="setBook()" class="mt-4 w-full bg-green-700 hover:bg-green-800 text-white rounded-2xl px-8 py-3 font-bold transition">设定本周书单 📖</button>
+              </div>
+
+              <div id="book-bar" class="hidden bg-gradient-to-r from-green-700 to-green-600 text-white rounded-3xl shadow-sm p-5 flex items-center justify-between">
+                <div>
+                  <p class="text-sm opacity-80" id="book-week-label">本周在读</p>
+                  <p class="text-lg font-bold" id="book-title-display">《》</p>
+                  <p class="text-sm opacity-90 mt-1" id="book-genre-display">题材：小说</p>
+                </div>
+                <button onclick="changeBook()" class="bg-white/20 hover:bg-white/30 text-white rounded-2xl px-4 py-2 text-sm font-medium transition">更换书籍</button>
+              </div>
+
+              <div id="record-area"></div>
+
+              <div class="bg-white rounded-3xl shadow-sm p-5">
+                <details>
+                  <summary class="cursor-pointer text-gray-600 font-medium select-none">📚 往周读过的书</summary>
+                  <ul id="history-list" class="mt-4 space-y-2 text-sm text-gray-600"></ul>
+                  <p id="history-empty" class="hidden mt-4 text-gray-400 text-sm">还没有往周记录</p>
+                </details>
+              </div>
+            </div><!-- /literature-panel -->
+
+            <!-- ============ 语言学习 · 多语言管理面板 ============ -->
+            <div id="language-panel" class="hidden space-y-4">
+              <div id="lang-list-view">
+                <div class="bg-white rounded-3xl shadow-sm p-5">
+                  <div class="flex items-center justify-between mb-1">
+                    <h1 class="text-xl font-bold text-gray-800">🌍 语言学习</h1>
+                    <span class="text-sm text-gray-500" id="lang-count"></span>
+                  </div>
+                  <p class="text-gray-500 text-sm mb-4">先添加你在学的语言，再点进去管理每一门的学习任务</p>
+                  <div class="flex gap-2">
+                    <input id="new-lang-input" type="text" placeholder="输入语言名，例如：英语 / 西班牙语 / 法语"
+                      class="flex-1 border border-gray-200 rounded-2xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-green-500 bg-gray-50">
+                    <button onclick="addLanguage()" class="bg-green-700 hover:bg-green-800 text-white rounded-2xl px-5 py-3 font-medium transition whitespace-nowrap">＋ 添加</button>
+                  </div>
+                  <p id="lang-input-hint" class="hidden text-xs text-red-500 mt-2">先写点什么再来添加吧</p>
+                </div>
+                <div id="lang-cards" class="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-4"></div>
+                <div id="lang-empty" class="hidden text-center py-10 text-gray-100">
+                  <p class="text-4xl mb-3">🌐</p>
+                  <p>还没有添加语言，上面输入并点「添加语言」开始吧</p>
+                </div>
+              </div>
+
+              <div id="lang-detail-view" class="hidden space-y-4">
+                <button onclick="backToLangList()" class="text-white hover:text-white/80 text-sm inline-flex items-center gap-1">← 返回语言列表</button>
+                <div class="bg-white rounded-3xl shadow-sm p-5">
+                  <div class="flex items-center justify-between">
+                    <div>
+                      <h1 class="text-xl font-bold text-gray-800" id="lang-detail-name">学习英语</h1>
+                      <p class="text-gray-500 text-sm mt-1"><span id="lang-streak-label">🔥 连续学习 0 天</span> · <span id="lang-checkin-label">今日未打卡</span></p>
+                    </div>
+                    <div class="text-right">
+                      <p class="text-2xl font-bold text-green-700" id="lang-progress-percent">0%</p>
+                      <p class="text-gray-500 text-xs"><span id="lang-completed">0</span> / <span id="lang-total">0</span> 已完成</p>
+                    </div>
+                  </div>
+                  <div class="w-full bg-gray-100 rounded-full h-3 mt-4">
+                    <div id="lang-progress-bar" class="bg-gradient-to-r from-green-500 to-green-700 h-3 rounded-full transition-all" style="width:0%"></div>
+                  </div>
+                  <button id="lang-checkin-btn" onclick="checkInLanguage()" class="mt-4 w-full bg-green-700 hover:bg-green-800 text-white rounded-2xl py-3 font-bold transition">✅ 学完打卡</button>
+                </div>
+
+                <div class="bg-white rounded-3xl shadow-sm p-5">
+                  <div class="flex items-center justify-between mb-3">
+                    <h2 class="text-lg font-bold text-gray-800">🌅 今日任务</h2>
+                    <span class="text-xs text-gray-400" id="today-weekday-label"></span>
+                  </div>
+                  <p class="text-xs text-gray-400 mb-2">一睁眼就照着做，做完打勾；每周自动重置</p>
+                  <ul id="langtask-today" class="divide-y divide-gray-100"></ul>
+                  <div id="langtask-today-empty" class="hidden text-center py-8 text-gray-400">
+                    <p class="text-sm">今天没有安排的任务，去「本周计划」里加一个吧</p>
+                  </div>
+                </div>
+
+                <div class="bg-white rounded-3xl shadow-sm p-5">
+                  <div class="flex items-center justify-between mb-4">
+                    <h2 class="text-lg font-bold text-gray-800">📋 本周计划</h2>
+                    <button onclick="openLangTaskModal()" class="text-sm bg-green-50 text-green-700 hover:bg-green-100 rounded-2xl px-4 py-2 font-medium transition">＋ 编辑计划</button>
+                  </div>
+                  <ul id="langtask-list" class="divide-y divide-gray-100"></ul>
+                  <div id="langtask-empty" class="hidden text-center py-10 text-gray-400">
+                    <p class="text-3xl mb-2">📝</p>
+                    <p class="text-sm">还没有周计划，点「编辑计划」把这一周要做的都排好</p>
+                  </div>
+                </div>
+              </div>
+            </div><!-- /language-panel -->
+
+            <!-- ============ 锻炼 · 每日运动打卡面板 ============ -->
+            <div id="exercise-panel" class="hidden space-y-4">
+              <div class="bg-white rounded-3xl shadow-sm p-5">
+                <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                  <div>
+                    <h1 class="text-xl font-bold text-gray-800">💪 锻炼打卡</h1>
+                    <p class="text-gray-500 text-sm mt-1" id="ex-week-label">本周锻炼计划</p>
+                  </div>
+                  <div class="flex items-center gap-2">
+                    <span class="text-gray-600 text-sm">每周目标</span>
+                    <input id="ex-goal-input" type="number" min="10" step="10"
+                      class="w-24 border border-gray-200 rounded-2xl px-3 py-2 text-right focus:outline-none focus:ring-2 focus:ring-green-500 bg-gray-50">
+                    <span class="text-gray-600 text-sm">分钟</span>
+                    <button onclick="saveExGoal()" class="bg-green-700 hover:bg-green-800 text-white rounded-2xl px-4 py-2 text-sm font-medium transition">设定</button>
+                  </div>
+                </div>
+              </div>
+
+              <div class="bg-white rounded-3xl shadow-sm p-5">
+                <div class="flex items-center justify-between mb-3">
+                  <h2 class="text-lg font-bold text-gray-800">本周进度</h2>
+                  <span id="ex-bar-pct" class="text-sm font-bold text-green-700">0%</span>
+                </div>
+                <div class="w-full bg-gray-100 rounded-full h-3">
+                  <div id="ex-bar" class="bg-gradient-to-r from-green-500 to-green-700 h-3 rounded-full transition-all" style="width:0%"></div>
+                </div>
+                <div class="grid grid-cols-2 gap-3 mt-4">
+                  <div class="bg-gray-50 rounded-2xl p-3">
+                    <p class="text-xs text-gray-500">本周累计</p>
+                    <p class="text-lg font-bold text-gray-800"><span id="ex-week-total">0</span> 分钟</p>
+                  </div>
+                  <div class="bg-gray-50 rounded-2xl p-3">
+                    <p class="text-xs text-gray-500">本周目标</p>
+                    <p class="text-lg font-bold text-gray-800"><span id="ex-week-goal">150</span> 分钟</p>
+                  </div>
+                  <div class="bg-gray-50 rounded-2xl p-3">
+                    <p class="text-xs text-gray-500">距目标</p>
+                    <p class="text-lg font-bold text-green-700"><span id="ex-remain">0</span> 分钟</p>
+                  </div>
+                  <div class="bg-orange-50 rounded-2xl p-3">
+                    <p class="text-xs text-gray-500">连续打卡</p>
+                    <p class="text-lg font-bold text-orange-700"><span id="ex-streak">0</span> 天 🔥</p>
+                  </div>
+                </div>
+              </div>
+
+              <div class="bg-white rounded-3xl shadow-sm p-5">
+                <p class="text-gray-700 font-medium mb-3">今日锻炼打卡</p>
+                <div class="flex items-center gap-2">
+                  <input id="ex-name-input" type="text" placeholder="练了什么？跑步/瑜伽/举铁…"
+                    class="flex-1 border border-gray-200 rounded-2xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-green-500 bg-gray-50">
+                  <input id="ex-min-input" type="number" min="1" step="5" placeholder="分钟"
+                    class="w-24 border border-gray-200 rounded-2xl px-3 py-3 focus:outline-none focus:ring-2 focus:ring-green-500 bg-gray-50">
+                  <button onclick="checkInExercise()" class="bg-green-700 hover:bg-green-800 text-white rounded-2xl px-5 py-3 font-bold transition whitespace-nowrap">打卡 💪</button>
+                </div>
+                <ul id="ex-session-list" class="divide-y divide-gray-100 mt-4"></ul>
+                <div id="ex-session-empty" class="hidden text-center py-6 text-gray-400">
+                  <p>今天还没动，去流流汗吧 💦</p>
+                </div>
+                <p class="text-xs text-gray-400 mt-3">今日已锻炼 <span id="ex-today" class="font-bold text-green-700">0</span> 分钟</p>
+              </div>
+            </div><!-- /exercise-panel -->
+
+          </div><!-- /detail-content -->
+        </div><!-- /detail-view -->
+
+        <!-- 移动端底部导航（窄屏显示） -->
+        <nav class="md:hidden fixed bottom-0 left-0 right-0 z-40 flex justify-center pointer-events-none">
+          <div class="pointer-events-auto">
+            <div class="bg-white/95 backdrop-blur-md rounded-t-3xl shadow-[0_-4px_20px_rgba(0,0,0,0.08)] px-1 py-2 flex items-center justify-around w-screen max-w-[600px]">
+              <button onclick="filterTasks('dashboard')" class="nav-item flex flex-col items-center gap-1 px-3 py-2 text-gray-500 text-[11px] transition" data-nav="dashboard">
+                <span class="text-xl">🏠</span><span>全部</span>
+                <span class="nav-dot w-1 h-1 rounded-full bg-green-700 mt-0.5"></span>
+              </button>
+              <button onclick="filterTasks('writing')" class="nav-item flex flex-col items-center gap-1 px-3 py-2 text-gray-500 text-[11px] transition" data-nav="writing">
+                <span class="text-xl">🐕</span><span>写作</span>
+                <span class="nav-dot w-1 h-1 rounded-full bg-green-700 mt-0.5"></span>
+              </button>
+              <button onclick="filterTasks('literature')" class="nav-item flex flex-col items-center gap-1 px-3 py-2 text-gray-500 text-[11px] transition" data-nav="literature">
+                <span class="text-xl">📚</span><span>文学</span>
+                <span class="nav-dot w-1 h-1 rounded-full bg-green-700 mt-0.5"></span>
+              </button>
+              <button onclick="filterTasks('language')" class="nav-item flex flex-col items-center gap-1 px-3 py-2 text-gray-500 text-[11px] transition" data-nav="language">
+                <span class="text-xl">🌍</span><span>语言</span>
+                <span class="nav-dot w-1 h-1 rounded-full bg-green-700 mt-0.5"></span>
+              </button>
+              <button onclick="filterTasks('exercise')" class="nav-item flex flex-col items-center gap-1 px-3 py-2 text-gray-500 text-[11px] transition" data-nav="exercise">
+                <span class="text-xl">💪</span><span>锻炼</span>
+                <span class="nav-dot w-1 h-1 rounded-full bg-green-700 mt-0.5"></span>
+              </button>
+            </div>
+          </div>
+        </nav>
+
+      </div><!-- /main-shell -->
+    </div><!-- /主内容 -->
+
+  </div><!-- /flex -->
+
+  <!-- 同步设置弹窗 -->
+  <div id="sync-modal" class="hidden fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-xl w-full max-w-md p-6 space-y-4">
+      <div class="flex items-center justify-between">
+        <h3 class="text-lg font-bold text-gray-800">🔄 跨设备同步设置</h3>
+        <button onclick="closeSyncSettings()" class="text-gray-400 hover:text-gray-700 text-xl leading-none">✕</button>
+      </div>
+      <p class="text-sm text-gray-500 leading-relaxed">把数据存到你的 GitHub 私人仓库，手机和电脑填同一套信息即可互通。数据只存在你自己的仓库，不经过任何第三方。Token 只保存在你本机浏览器。</p>
+      <label class="block text-sm text-gray-600">GitHub 用户名
+        <input id="sync-user" class="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-green-500 focus:outline-none">
+      </label>
+      <label class="block text-sm text-gray-600">仓库名
+        <input id="sync-repo" class="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-green-500 focus:outline-none">
+      </label>
+      <label class="block text-sm text-gray-600">分支
+        <input id="sync-branch" value="main" class="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-green-500 focus:outline-none">
+      </label>
+      <label class="block text-sm text-gray-600">访问令牌 Token
+        <input id="sync-token" type="password" placeholder="ghp_..." class="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-green-500 focus:outline-none">
+      </label>
+      <div class="rounded-lg bg-amber-50 border border-amber-200 p-3 text-xs text-amber-800 leading-relaxed">
+        ⚠️ 隐私要点：上面那个仓库请保持 <b>私人</b>，只放你的数据。下面「网站仓库」请新建一个 <b>公开</b> 仓库，只放网页文件，用来生成手机/电脑能访问的网址。两个分开，你的笔记就不会被公开。
+      </div>
+      <label class="block text-sm text-gray-600">网站仓库（公开 · 用于生成网址）
+        <input id="sync-site-repo" placeholder="例如 moss-web（公开仓库名）" class="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-green-500 focus:outline-none">
+      </label>
+      <label class="flex items-center gap-2 text-sm text-gray-700"><input id="sync-enabled" type="checkbox" class="w-4 h-4"> 启用同步（开启后每次保存自动上传）</label>
+      <div class="flex gap-2 pt-1">
+        <button onclick="saveSyncConfig()" class="flex-1 bg-green-700 hover:bg-green-800 text-white rounded-lg py-2 font-medium transition">保存设置</button>
+        <button onclick="syncNow()" class="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg py-2 font-medium transition">立即同步</button>
+      </div>
+      <div class="border-t border-gray-100 pt-3">
+        <button onclick="publishSite()" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg py-2.5 font-medium transition">🚀 一键发布到网页（变成可安装的 APP）</button>
+        <p class="text-xs text-gray-400 mt-2 leading-relaxed">把工作台和 APP 图标上传到上面的「网站仓库（公开）」，再用 GitHub Pages 生成一个网址。手机「添加到主屏幕」、电脑「安装此应用」即可像 APP 一样打开。发布后请在<b>网站仓库</b>的 Settings → Pages → Source 选 <b>main</b> 分支并保存。</p>
+      </div>
+      <p id="sync-msg" class="text-xs text-gray-500 min-h-[1rem]"></p>
+    </div>
+  </div>
+
+  <!-- 编辑每周语言任务弹窗 -->
+  <div id="langtask-modal" class="hidden fixed inset-0 bg-black/30 flex items-center justify-center z-50" onclick="closeLangTaskModal()">
+    <div class="bg-white rounded-2xl p-6 w-full max-w-md mx-4 shadow-xl" onclick="event.stopPropagation()">
+      <h3 class="text-lg font-bold text-gray-800 mb-1">添加每周任务</h3>
+      <p class="text-xs text-gray-400 mb-4">排好这一周要做的，每周自动重置，每天直接照做</p>
+      <input id="langtask-input" type="text" placeholder="例如：背 20 个单词 / 练听力 15 分钟"
+        onkeydown="if(event.key==='Enter')confirmLangTaskModal()"
+        class="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-green-500">
+      <p class="text-sm text-gray-600 mt-4 mb-2">安排在星期（不选 = 每天做）</p>
+      <div id="langtask-days" class="flex flex-wrap gap-2"></div>
+      <div class="flex justify-end gap-3 mt-5">
+        <button onclick="closeLangTaskModal()" class="px-4 py-2 rounded-xl text-gray-500 hover:bg-gray-100 transition">取消</button>
+        <button onclick="confirmLangTaskModal()" class="bg-green-700 hover:bg-green-800 text-white rounded-xl px-6 py-2 font-medium transition">确定</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    /* ---------- 任务系统（文学 / 语言） ---------- */
+    const categoryNames = { literature: '文学学习', language: '语言学习' };
+    const categoryIcons = { literature: '📚', language: '🌍' };
+    const defaultTasks = [
+      { id: 11, text: '记录今日灵感 / 选题', category: 'inspiration', completed: false }
+    ];
+    let tasks = JSON.parse(localStorage.getItem('mossTasks')) || defaultTasks;
+    tasks.forEach(t => { if (t.category === 'writing') t.category = 'inspiration'; });
+    let currentFilter = 'dashboard';
+
+    function saveTasks() { localStorage.setItem('mossTasks', JSON.stringify(tasks)); }
+
+    function renderTasks() {
+      const listEl = document.getElementById('task-list');
+      const filtered = tasks.filter(t => (currentFilter === 'all' || t.category === currentFilter) && t.category !== 'inspiration' && t.category !== 'literature' && t.category !== 'language');
+      listEl.innerHTML = '';
+      if (filtered.length === 0) {
+        document.getElementById('empty-state').classList.remove('hidden');
+      } else {
+        document.getElementById('empty-state').classList.add('hidden');
+        filtered.forEach(task => {
+          const li = document.createElement('li');
+          li.className = 'task-row flex items-center gap-4 px-2 py-4 rounded-xl';
+          li.innerHTML = `
+            <input type="checkbox" class="task-checkbox w-5 h-5 text-green-600 rounded focus:ring-green-500 cursor-pointer"
+              ${task.completed ? 'checked' : ''} onchange="toggleTask(${task.id})">
+            <div class="flex-1 ${task.completed ? 'line-through text-gray-400' : 'text-gray-700'}">
+              <span class="font-medium">${escapeHtml(task.text)}</span>
+              <span class="ml-2 text-xs px-2 py-1 rounded-full bg-gray-100 text-gray-500">${categoryIcons[task.category]} ${categoryNames[task.category]}</span>
+            </div>
+            <button onclick="deleteTask(${task.id})" class="text-gray-400 hover:text-red-500 transition px-2">✕</button>`;
+          listEl.appendChild(li);
+        });
+      }
+      updateProgress();
+      updateDashboard();
+    }
+
+    function updateProgress() {
+      const total = tasks.length;
+      const completed = tasks.filter(t => t.completed).length;
+      const percent = total === 0 ? 0 : Math.round((completed / total) * 100);
+      document.getElementById('progress-percent').textContent = percent + '%';
+      document.getElementById('completed-count').textContent = completed;
+      document.getElementById('total-count').textContent = total;
+      document.getElementById('main-progress').style.width = percent + '%';
+    }
+
+    function toggleTask(id) {
+      const t = tasks.find(x => x.id === id);
+      if (t) { t.completed = !t.completed; saveTasks(); renderTasks(); }
+    }
+    function deleteTask(id) { tasks = tasks.filter(x => x.id !== id); saveTasks(); renderTasks(); }
+    function addTask() {
+      const input = document.getElementById('new-task-input');
+      const text = input.value.trim();
+      if (!text) return;
+      tasks.push({ id: Date.now(), text, category: document.getElementById('new-task-category').value, completed: false });
+      input.value = ''; saveTasks(); renderTasks();
+    }
+    document.getElementById('new-task-input').addEventListener('keypress', e => { if (e.key === 'Enter') addTask(); });
+
+    /* ---------- 网文写作 · 灵感记录 ---------- */
+    function renderInspiration() {
+      const listEl = document.getElementById('insp-list');
+      const items = tasks.filter(t => t.category === 'inspiration');
+      listEl.innerHTML = '';
+      if (items.length === 0) {
+        document.getElementById('insp-empty').classList.remove('hidden');
+      } else {
+        document.getElementById('insp-empty').classList.add('hidden');
+        items.forEach(task => {
+          const li = document.createElement('li');
+          li.className = 'task-row flex items-center gap-4 px-2 py-4 rounded-xl';
+          li.innerHTML = `
+            <input type="checkbox" class="task-checkbox w-5 h-5 text-green-600 rounded focus:ring-green-500 cursor-pointer"
+              ${task.completed ? 'checked' : ''} onchange="toggleTask(${task.id})">
+            <div class="flex-1 ${task.completed ? 'line-through text-gray-400' : 'text-gray-700'}">
+              <span class="font-medium">${escapeHtml(task.text)}</span>
+              <span class="ml-2 text-xs px-2 py-1 rounded-full bg-amber-100 text-amber-600">✨ 灵感</span>
+            </div>
+            <button onclick="deleteTask(${task.id})" class="text-gray-400 hover:text-red-500 transition px-2">✕</button>`;
+          listEl.appendChild(li);
+        });
+      }
+      updateDashboard();
+    }
+    function addInspiration() {
+      const input = document.getElementById('insp-input');
+      const text = input.value.trim();
+      if (!text) return;
+      tasks.push({ id: Date.now(), text, category: 'inspiration', completed: false });
+      input.value = ''; saveTasks(); renderInspiration();
+    }
+    document.getElementById('insp-input').addEventListener('keypress', function(e) {
+      if (e.key === 'Enter') addInspiration();
+    });
+    function switchWritingTab(tab) {
+      document.getElementById('climb-view').classList.toggle('hidden', tab !== 'climb');
+      document.getElementById('inspiration-view').classList.toggle('hidden', tab !== 'inspiration');
+      const c = document.getElementById('tab-climb'), i = document.getElementById('tab-inspiration');
+      c.className = 'flex-1 py-3 rounded-2xl font-medium transition ' + (tab === 'climb' ? 'bg-green-700 text-white' : 'text-gray-600 hover:bg-gray-100');
+      i.className = 'flex-1 py-3 rounded-2xl font-medium transition ' + (tab === 'inspiration' ? 'bg-green-700 text-white' : 'text-gray-600 hover:bg-gray-100');
+      if (tab === 'inspiration') renderInspiration(); else renderClimb();
+    }
+
+    /* ---------- 文学学习 · 本周读书 ---------- */
+    const genreMeta = {
+      novel:  { icon:'📖', name:'小说', unit:'章', label:'章节阅读记录',
+        fields:[
+          {key:'chapter', label:'章节名', type:'input', placeholder:'例如：第一章 幻境初开'},
+          {key:'summary', label:'内容概要', type:'textarea', placeholder:'这一章大概讲了什么…'},
+          {key:'feeling', label:'我的感悟', type:'textarea', placeholder:'读这一章的感受、想法…'}
+        ]},
+      prose:  { icon:'📝', name:'散文集', unit:'篇', label:'散文阅读记录',
+        fields:[
+          {key:'title', label:'篇名', type:'input', placeholder:'例如：背影'},
+          {key:'author', label:'作者', type:'input', placeholder:'作者（选填）'},
+          {key:'quote', label:'摘抄好句', type:'textarea', placeholder:'把喜欢的句子抄下来…'},
+          {key:'feeling', label:'我的感受', type:'textarea', placeholder:'读这篇的联想、感受…'}
+        ]},
+      poetry: { icon:'🎴', name:'诗集', unit:'首', label:'诗词阅读记录',
+        fields:[
+          {key:'title', label:'诗名', type:'input', placeholder:'例如：将进酒'},
+          {key:'author', label:'作者', type:'input', placeholder:'作者（选填）'},
+          {key:'quote', label:'摘抄', type:'textarea', placeholder:'整首，或最爱的那一句…'},
+          {key:'feeling', label:'我的解读', type:'textarea', placeholder:'对诗意的理解、喜欢的理由…'}
+        ]},
+      other:  { icon:'📚', name:'其他', unit:'则', label:'阅读记录',
+        fields:[
+          {key:'title', label:'篇名 / 章节', type:'input', placeholder:'名称'},
+          {key:'summary', label:'内容概要', type:'textarea', placeholder:'大概内容…'},
+          {key:'feeling', label:'我的感悟', type:'textarea', placeholder:'感受、想法…'}
+        ]}
+    };
+
+    function getWeekKey() {
+      const d = new Date();
+      const onejan = new Date(d.getFullYear(), 0, 1);
+      const week = Math.ceil((((d - onejan) / 86400000) + onejan.getDay() + 1) / 7);
+      return `${d.getFullYear()}-W${week}`;
+    }
+
+    let litArchive = JSON.parse(localStorage.getItem('mossLitArchive')) || {};
+    let pendingGenre = 'novel';
+
+    function saveLiterature() { localStorage.setItem('mossLitArchive', JSON.stringify(litArchive)); }
+
+    function currentWeekData() {
+      const wk = getWeekKey();
+      if (!litArchive[wk]) litArchive[wk] = { book: null, entries: [] };
+      return litArchive[wk];
+    }
+
+    (function migrateOld() {
+      try {
+        const oldLit = JSON.parse(localStorage.getItem('mossLiterature'));
+        if (oldLit && oldLit.book) {
+          const wk = oldLit.weekKey || getWeekKey();
+          if (!litArchive[wk]) litArchive[wk] = { book: oldLit.book, entries: oldLit.entries || [] };
+          localStorage.removeItem('mossLiterature');
+          localStorage.removeItem('mossLitHistory');
+          saveLiterature();
+        }
+      } catch (e) {}
+    })();
+
+    let bookData = currentWeekData();
+
+    function pickGenre(g) {
+      pendingGenre = g;
+      document.querySelectorAll('#genre-picker .genre-btn').forEach(b => {
+        const on = b.dataset.genre === g;
+        b.className = 'genre-btn border rounded-2xl py-3 px-2 text-center transition ' + (on ? 'border-green-600 bg-green-50 ring-1 ring-green-200' : 'border-gray-200 hover:border-green-500');
+      });
+    }
+
+    function setBook() {
+      const title = document.getElementById('book-title-input').value.trim();
+      if (!title) { alert('先写上书的名字吧'); return; }
+      bookData = currentWeekData();
+      bookData.book = { title, genre: pendingGenre };
+      bookData.entries = [];
+      saveLiterature(); renderLiterature();
+    }
+
+    function changeBook() {
+      bookData = currentWeekData();
+      bookData.book = null;
+      bookData.entries = [];
+      saveLiterature();
+      document.getElementById('book-title-input').value = '';
+      pickGenre('novel');
+      renderLiterature();
+    }
+
+    function defaultEntry() {
+      const g = bookData.book.genre;
+      const e = { id: Date.now() };
+      genreMeta[g].fields.forEach(f => e[f.key] = '');
+      if (g === 'poetry') e.memorized = false;
+      return e;
+    }
+
+    function addEntry() {
+      bookData = currentWeekData();
+      bookData.entries.push(defaultEntry());
+      saveLiterature(); renderRecordArea();
+    }
+
+    function deleteEntry(id) {
+      bookData = currentWeekData();
+      bookData.entries = bookData.entries.filter(x => x.id !== id);
+      saveLiterature(); renderRecordArea();
+    }
+
+    function updateEntry(id, key, val) {
+      bookData = currentWeekData();
+      const e = bookData.entries.find(x => x.id === id);
+      if (e) {
+        e[key] = val; saveLiterature();
+        if (bookData.book.genre === 'prose') {
+          const qw = document.getElementById('quote-wall');
+          if (qw) qw.innerHTML = buildQuoteWall();
+        }
+      }
+    }
+
+    function toggleMemorized(id) {
+      bookData = currentWeekData();
+      const e = bookData.entries.find(x => x.id === id);
+      if (e) { e.memorized = !e.memorized; saveLiterature(); renderRecordArea(); }
+    }
+
+    function buildQuoteWall() {
+      const quotes = bookData.entries
+        .filter(e => e.quote && e.quote.trim())
+        .map(e => `<div class="bg-amber-50 border-l-4 border-amber-400 rounded p-3 text-gray-700"><span class="italic">"${escapeHtml(e.quote)}"</span><div class="text-xs text-gray-400 mt-1">— ${escapeHtml(e.title || '未命名')}</div></div>`)
+        .join('');
+      return quotes || '<p class="text-gray-400 text-sm">还没有摘抄，抄下第一句吧</p>';
+    }
+
+    function entryCard(e, i, meta) {
+      const g = bookData.book.genre;
+      const headerLabel = g === 'novel' ? `第 ${i + 1} 章` : (g === 'prose' ? `第 ${i + 1} 篇` : (g === 'poetry' ? `第 ${i + 1} 首` : `第 ${i + 1} 则`));
+      const fieldsHtml = meta.fields.map(f => {
+        const val = escapeHtml(e[f.key] || '');
+        if (f.type === 'textarea') {
+          return `<div class="mt-2">
+            <label class="text-xs text-gray-500">${f.label}</label>
+            <textarea oninput="updateEntry(${e.id},'${f.key}',this.value)" placeholder="${f.placeholder}" rows="2" class="mt-1 w-full border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-green-500 resize-none bg-gray-50">${val}</textarea>
+          </div>`;
+        }
+        return `<div class="mt-2">
+          <label class="text-xs text-gray-500">${f.label}</label>
+          <input oninput="updateEntry(${e.id},'${f.key}',this.value)" value="${val}" placeholder="${f.placeholder}" class="mt-1 w-full border border-gray-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-green-500 bg-gray-50"/>
+        </div>`;
+      }).join('');
+      let memorizedBtn = '';
+      if (g === 'poetry') {
+        const on = e.memorized;
+        memorizedBtn = `<button onclick="toggleMemorized(${e.id})" class="text-xs px-3 py-1 rounded-full font-medium transition ${on ? 'bg-green-600 text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200'}">${on ? '✅ 已背诵' : '🔘 标记背诵'}</button>`;
+      }
+      return `<div class="border border-gray-200 rounded-xl p-4 bg-white">
+        <div class="flex items-center justify-between mb-1">
+          <span class="text-sm font-medium text-gray-500">${headerLabel}</span>
+          <div class="flex items-center gap-2">
+            ${memorizedBtn}
+            <button onclick="deleteEntry(${e.id})" class="text-gray-400 hover:text-red-500 transition px-1">✕</button>
+          </div>
+        </div>
+        ${fieldsHtml}
+      </div>`;
+    }
+
+    function renderRecordArea() {
+      const area = document.getElementById('record-area');
+      const g = bookData.book.genre;
+      const meta = genreMeta[g];
+      const statHtml = g === 'poetry'
+        ? `本周已读 <b>${bookData.entries.length}</b> 首 · 已背诵 <b>${bookData.entries.filter(e => e.memorized).length}</b> 首`
+        : `本周已读 <b>${bookData.entries.length}</b> ${meta.unit}`;
+      const entriesHtml = bookData.entries.map((e, i) => entryCard(e, i, meta)).join('');
+      let html = `<div class="bg-white rounded-3xl shadow-sm p-5">
+        <div class="flex items-center justify-between mb-4">
+          <h2 class="text-lg font-bold text-gray-800">${meta.icon} ${meta.label}</h2>
+          <span class="text-sm text-gray-500">${statHtml}</span>
+        </div>
+        <div class="space-y-4">${entriesHtml || '<p class="text-gray-400 text-sm">还没有记录，点下面添加第一' + meta.unit + '吧</p>'}</div>
+        <button onclick="addEntry()" class="mt-4 w-full border-2 border-dashed border-green-300 text-green-700 rounded-2xl py-3 font-medium hover:bg-green-50 transition">＋ 添加一${meta.unit}</button>
+      </div>`;
+      if (g === 'prose') {
+        html += `<div class="bg-white rounded-3xl shadow-sm p-5 mt-4">
+          <h2 class="text-lg font-bold text-gray-800 mb-3">📜 本周摘抄墙</h2>
+          <div id="quote-wall" class="space-y-2">${buildQuoteWall()}</div>
+        </div>`;
+      }
+      area.innerHTML = html;
+    }
+
+    function renderHistory() {
+      const archive = JSON.parse(localStorage.getItem('mossLitArchive')) || {};
+      const ul = document.getElementById('history-list');
+      const empty = document.getElementById('history-empty');
+      ul.innerHTML = '';
+      const weeks = Object.keys(archive).filter(k => archive[k].book).sort().reverse();
+      if (weeks.length === 0) { empty.classList.remove('hidden'); return; }
+      empty.classList.add('hidden');
+      weeks.forEach(wk => {
+        const wd = archive[wk];
+        const meta = genreMeta[wd.book.genre] || { name: '', unit: '条', icon: '📚' };
+        const entriesCount = wd.entries.length;
+        const memCount = wd.book.genre === 'poetry' ? wd.entries.filter(e => e.memorized).length : 0;
+        const summaryExtra = wd.book.genre === 'poetry' ? ` · 背诵 ${memCount}` : '';
+        const entriesHtml = wd.entries.map((e, i) => entryCardView(e, i, meta, wd.book.genre)).join('');
+        const li = document.createElement('li');
+        li.className = 'border border-gray-100 rounded-xl overflow-hidden';
+        li.innerHTML = `<details>
+          <summary class="cursor-pointer select-none px-4 py-3 hover:bg-gray-50 flex items-center gap-2 flex-wrap">
+            <span class="text-gray-400 text-sm">${wk}</span>
+            <span class="font-medium text-gray-800">《${escapeHtml(wd.book.title)}》</span>
+            <span class="text-xs px-2 py-0.5 rounded-full bg-gray-100 text-gray-500">${meta.icon} ${meta.name}</span>
+            <span class="text-gray-400 text-xs">${entriesCount} ${meta.unit}${summaryExtra}</span>
+          </summary>
+          <div class="px-4 pb-4 pt-1 space-y-3 bg-white">${entriesHtml || '<p class="text-gray-400 text-sm">该周暂无详细记录</p>'}</div>
+        </details>`;
+        ul.appendChild(li);
+      });
+    }
+
+    function entryCardView(e, i, meta, genre) {
+      const headerLabel = genre === 'novel' ? `第 ${i + 1} 章` : (genre === 'prose' ? `第 ${i + 1} 篇` : (genre === 'poetry' ? `第 ${i + 1} 首` : `第 ${i + 1} 则`));
+      const fieldsHtml = meta.fields.map(f => {
+        const val = escapeHtml(e[f.key] || '（未填写）');
+        return `<div class="mt-2">
+          <p class="text-xs text-gray-400">${f.label}</p>
+          <div class="text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">${val}</div>
+        </div>`;
+      }).join('');
+      let mem = '';
+      if (genre === 'poetry') mem = `<span class="text-xs px-2 py-0.5 rounded-full ${e.memorized ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-500'}">${e.memorized ? '✅ 已背诵' : '🔘 未背诵'}</span>`;
+      return `<div class="border border-gray-100 rounded-xl p-4 bg-gray-50">
+        <div class="flex items-center justify-between mb-1">
+          <span class="text-sm font-medium text-gray-500">${headerLabel}</span>
+          ${mem}
+        </div>
+        ${fieldsHtml}
+      </div>`;
+    }
+
+    function renderLiterature() {
+      bookData = currentWeekData();
+      const setup = document.getElementById('book-setup');
+      const bar = document.getElementById('book-bar');
+      if (!bookData.book) {
+        setup.classList.remove('hidden');
+        bar.classList.add('hidden');
+        document.getElementById('record-area').innerHTML = '';
+        pickGenre(pendingGenre);
+        renderHistory();
+        return;
+      }
+      setup.classList.add('hidden');
+      bar.classList.remove('hidden');
+      document.getElementById('book-title-display').textContent = '《' + bookData.book.title + '》';
+      document.getElementById('book-genre-display').textContent = '题材：' + genreMeta[bookData.book.genre].name;
+      document.getElementById('book-week-label').textContent = '本周在读 · ' + getWeekKey();
+      renderRecordArea();
+      renderHistory();
+      updateDashboard();
+    }
+
+    /* ---------- 网文写作 · 雪山打卡系统 ---------- */
+    const now = new Date();
+    const Y = now.getFullYear();
+    const M = now.getMonth() + 1;
+    const D = now.getDate();
+    const monthKey = `${Y}-${M}`;
+    const todayKey = `${Y}-${M}-${D}`;
+
+    let mossData = JSON.parse(localStorage.getItem('mossClimb')) || { monthlyGoal: 100000, checkins: {} };
+    if (!mossData.checkins) mossData.checkins = {};
+    if (!mossData.checkins[monthKey]) mossData.checkins[monthKey] = {};
+
+    function daysInMonth(y, m) { return new Date(y, m, 0).getDate(); }
+    function dailyGoal() { return Math.ceil(mossData.monthlyGoal / daysInMonth(Y, M)); }
+    function monthTotal() {
+      const mc = mossData.checkins[monthKey] || {};
+      return Object.values(mc).reduce((a, b) => a + b, 0);
+    }
+    function progress() {
+      if (mossData.monthlyGoal <= 0) return 0;
+      return Math.min(1, monthTotal() / mossData.monthlyGoal);
+    }
+    function saveClimb() { localStorage.setItem('mossClimb', JSON.stringify(mossData)); }
+
+    function renderClimb() {
+      document.getElementById('goal-input').value = mossData.monthlyGoal;
+      document.getElementById('writing-date').textContent = `${Y}年${M}月 · 共 ${daysInMonth(Y, M)} 天`;
+      document.getElementById('stat-daily').textContent = dailyGoal().toLocaleString();
+      const today = (mossData.checkins[monthKey][todayKey] || 0);
+      document.getElementById('stat-today').textContent = today > 0 ? today.toLocaleString() + ' 字' : '未打卡';
+      const total = monthTotal();
+      document.getElementById('stat-total').textContent = total.toLocaleString();
+      const remain = Math.max(0, mossData.monthlyGoal - total);
+      document.getElementById('stat-remain').textContent = remain.toLocaleString();
+
+      const p = progress();
+      const t = p;
+      const x = (1 - t) * (1 - t) * 40 + 2 * (1 - t) * t * 70 + t * t * 120;
+      const y = (1 - t) * (1 - t) * 300 + 2 * (1 - t) * t * 200 + t * t * 40;
+      const dog = document.getElementById('dog');
+      dog.style.left = (x - 32) + 'px';
+      dog.style.top = (y - 26) + 'px';
+
+      const reached = p >= 1;
+      const todayDone = today > 0;
+      const todayMet = today >= dailyGoal();
+      const ratio = dailyGoal() > 0 ? today / dailyGoal() : 0;
+      dog.classList.remove('cheer', 'sad');
+      if (reached) {
+        dog.classList.add('cheer');
+        document.getElementById('mood-emoji').textContent = '🎉';
+        document.getElementById('mood-text').textContent = '登顶啦！雪山之巅，汪汪得意！';
+      } else if (!todayDone) {
+        dog.classList.add('sad');
+        document.getElementById('mood-emoji').textContent = '😟';
+        document.getElementById('mood-text').textContent = '今天还没出发，小狗在半山腰蔫蔫地等你…';
+      } else if (todayMet) {
+        document.getElementById('mood-emoji').textContent = '😄';
+        document.getElementById('mood-text').textContent = '今天达标，小狗开心地往上蹦了一截！';
+      } else if (ratio >= 0.5) {
+        document.getElementById('mood-emoji').textContent = '🙂';
+        document.getElementById('mood-text').textContent = '不错哦，再努把力就到今日目标啦！';
+      } else {
+        dog.classList.add('sad');
+        document.getElementById('mood-emoji').textContent = '😢';
+        document.getElementById('mood-text').textContent = '才写这么点，小狗有点失落，明天多写点嘛～';
+      }
+      updateDashboard();
+    }
+
+    function saveGoal() {
+      const v = parseInt(document.getElementById('goal-input').value, 10);
+      if (v >= 1000) { mossData.monthlyGoal = v; saveClimb(); renderClimb(); }
+      else alert('目标至少 1000 字哦');
+    }
+
+    function checkIn() {
+      const el = document.getElementById('today-words');
+      const v = parseInt(el.value, 10);
+      if (isNaN(v) || v <= 0) { document.getElementById('checkin-msg').textContent = '请输入今天写的字数'; return; }
+      mossData.checkins[monthKey][todayKey] = v;
+      saveClimb(); renderClimb(); el.value = '';
+      const met = v >= dailyGoal();
+      document.getElementById('checkin-msg').textContent = met
+        ? `打卡成功！今天 ${v.toLocaleString()} 字，已达标，小狗又往上爬了一步 ⛰️`
+        : `已记录 ${v.toLocaleString()} 字（今日目标 ${dailyGoal().toLocaleString()} 字），继续加油，让小狗爬更高！`;
+    }
+
+    /* ---------- 锻炼 · 每日运动打卡 ---------- */
+    let exerciseData = JSON.parse(localStorage.getItem('mossExercise')) || { weeklyGoal: 150, sessions: {} };
+    // sessions: { 'Y-M-D': [ {id, name, minutes} ] }
+
+    function saveExercise() { localStorage.setItem('mossExercise', JSON.stringify(exerciseData)); }
+    function exDayKey(d) { return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`; }
+    function exHasSession(d) { return (exerciseData.sessions[exDayKey(d)] || []).length > 0; }
+
+    function exWeekStart() {
+      const x = new Date();
+      const day = (x.getDay() + 6) % 7; // 周一为 0
+      x.setDate(x.getDate() - day); x.setHours(0, 0, 0, 0);
+      return x;
+    }
+    function exWeekTotal() {
+      const start = exWeekStart(); let sum = 0;
+      for (let i = 0; i < 7; i++) {
+        const d = new Date(start); d.setDate(start.getDate() + i);
+        (exerciseData.sessions[exDayKey(d)] || []).forEach(s => sum += s.minutes);
+      }
+      return sum;
+    }
+    function exStreak() {
+      let streak = 0; const cur = new Date();
+      if (!exHasSession(cur)) { cur.setDate(cur.getDate() - 1); if (!exHasSession(cur)) return 0; }
+      while (exHasSession(cur)) { streak++; cur.setDate(cur.getDate() - 1); }
+      return streak;
+    }
+    function exTodayTotal() { return (exerciseData.sessions[todayKey] || []).reduce((a, b) => a + b.minutes, 0); }
+
+    function saveExGoal() {
+      const v = parseInt(document.getElementById('ex-goal-input').value, 10);
+      if (v > 0) { exerciseData.weeklyGoal = v; saveExercise(); renderExercise(); }
+      else alert('目标要大于 0 哦');
+    }
+    function checkInExercise() {
+      const nameEl = document.getElementById('ex-name-input');
+      const minEl = document.getElementById('ex-min-input');
+      const name = nameEl.value.trim();
+      const min = parseInt(minEl.value, 10);
+      if (!name) { alert('写一下练了什么吧'); return; }
+      if (isNaN(min) || min <= 0) { alert('填一下练了多少分钟'); return; }
+      if (!exerciseData.sessions[todayKey]) exerciseData.sessions[todayKey] = [];
+      exerciseData.sessions[todayKey].push({ id: Date.now(), name, minutes: min });
+      saveExercise(); nameEl.value = ''; minEl.value = ''; renderExercise();
+    }
+    function deleteExSession(id) {
+      exerciseData.sessions[todayKey] = (exerciseData.sessions[todayKey] || []).filter(s => s.id !== id);
+      saveExercise(); renderExercise();
+    }
+    function renderExercise() {
+      document.getElementById('ex-goal-input').value = exerciseData.weeklyGoal;
+      document.getElementById('ex-week-label').textContent = '本周锻炼计划 · ' + getWeekKey();
+      const total = exWeekTotal();
+      const goal = exerciseData.weeklyGoal || 1;
+      const pct = Math.min(100, Math.round(total / goal * 100));
+      document.getElementById('ex-week-total').textContent = total;
+      document.getElementById('ex-week-goal').textContent = exerciseData.weeklyGoal;
+      document.getElementById('ex-remain').textContent = Math.max(0, exerciseData.weeklyGoal - total);
+      document.getElementById('ex-streak').textContent = exStreak();
+      document.getElementById('ex-today').textContent = exTodayTotal();
+      document.getElementById('ex-bar').style.width = pct + '%';
+      document.getElementById('ex-bar-pct').textContent = pct + '%';
+      const ul = document.getElementById('ex-session-list');
+      const empty = document.getElementById('ex-session-empty');
+      ul.innerHTML = '';
+      const sess = (exerciseData.sessions[todayKey] || []);
+      if (sess.length === 0) { empty.classList.remove('hidden'); }
+      else {
+        empty.classList.add('hidden');
+        sess.forEach(s => {
+          const li = document.createElement('li');
+          li.className = 'flex items-center justify-between py-3';
+          li.innerHTML = `<div class="flex items-center gap-3"><span class="text-xl">🏃</span><span class="font-medium text-gray-700">${escapeHtml(s.name)}</span></div>` +
+            `<div class="flex items-center gap-3"><span class="text-green-700 font-bold">${s.minutes} 分钟</span>` +
+            `<button onclick="deleteExSession(${s.id})" class="text-gray-400 hover:text-red-500 px-1 transition">✕</button></div>`;
+          ul.appendChild(li);
+        });
+      }
+    }
+
+    /* ---------- 视图切换 ---------- */
+    function filterTasks(filter) {
+      currentFilter = filter;
+      const isDashboard = filter === 'dashboard';
+      const isWriting = filter === 'writing';
+      const isLiterature = filter === 'literature';
+      const isLanguage = filter === 'language';
+      const isExercise = filter === 'exercise';
+      const isAll = filter === 'all';
+
+      if (isDashboard) {
+        document.getElementById('dashboard-view').classList.remove('hidden');
+        document.getElementById('detail-view').classList.add('hidden');
+      } else {
+        document.getElementById('dashboard-view').classList.add('hidden');
+        document.getElementById('detail-view').classList.remove('hidden');
+      }
+
+      document.getElementById('writing-panel').classList.toggle('hidden', !isWriting);
+      document.getElementById('literature-panel').classList.toggle('hidden', !isLiterature);
+      document.getElementById('language-panel').classList.toggle('hidden', !isLanguage);
+      document.getElementById('exercise-panel').classList.toggle('hidden', !isExercise);
+      document.getElementById('task-panel').classList.toggle('hidden', !(isAll || isDashboard));
+
+      const titleMap = {
+        all: '全部事项',
+        dashboard: '全部事项',
+        writing: '网文写作',
+        literature: '文学学习',
+        language: '语言学习',
+        exercise: '锻炼'
+      };
+      document.getElementById('current-view').textContent = titleMap[filter] || 'MOSS 工作台';
+
+      const hintMap = {
+        all: '完成一项打勾，进度一目了然',
+        dashboard: '点左边列表或下方卡片，进入任一模块',
+        writing: '每写一字，雪橇犬向山顶迈进一步',
+        literature: '读一本好书，记下每个动人的篇章',
+        language: '多门语言，逐门攻克',
+        exercise: '每天动一动，连续打卡养成好习惯 💪'
+      };
+      document.getElementById('topbar-hint').textContent = hintMap[filter] || '';
+
+      document.querySelectorAll('.nav-item').forEach(btn => {
+        if (btn.dataset.nav === filter) btn.classList.add('active');
+        else btn.classList.remove('active');
+      });
+
+      if (isWriting) switchWritingTab('climb');
+      else if (isLiterature) renderLiterature();
+      else if (isLanguage) renderLanguageList();
+      else if (isExercise) renderExercise();
+      else if (isAll) renderTasks();
+
+      updateDashboard();
+    }
+
+    function backToDashboard() { filterTasks('dashboard'); }
+
+    /* ---------- 语言学习 · 多语言管理（每周计划模式） ---------- */
+    const WEEK_DAY_LABELS = ['日', '一', '二', '三', '四', '五', '六'];
+    let languages = JSON.parse(localStorage.getItem('mossLanguages')) || [];
+    let activeLangId = null;
+
+    // 旧版「每日任务」迁移为「每周计划」
+    languages.forEach(l => {
+      if (Array.isArray(l.tasks) && !Array.isArray(l.weeklyTasks)) {
+        l.weeklyTasks = l.tasks.map(t => ({ id: t.id, text: t.text, days: [0,1,2,3,4,5,6], doneWeek: t.completed ? getWeekKey() : '' }));
+        delete l.tasks;
+      }
+      if (!Array.isArray(l.weeklyTasks)) l.weeklyTasks = [];
+    });
+
+    function saveLanguages() { localStorage.setItem('mossLanguages', JSON.stringify(languages)); }
+
+    // 新语言默认给一套每周计划，一睁眼就能直接做
+    function defaultWeeklyTasks() {
+      const base = Date.now();
+      return [
+        { id: base + 1, text: '背 20 个单词', days: [0,1,2,3,4,5,6], doneWeek: '' },
+        { id: base + 2, text: '听力练习 15 分钟', days: [0,1,2,3,4,5,6], doneWeek: '' },
+        { id: base + 3, text: '阅读一篇短文', days: [0,1,2,3,4,5,6], doneWeek: '' },
+        { id: base + 4, text: '复习语法 10 分钟', days: [1,2,3,4,5], doneWeek: '' },
+        { id: base + 5, text: '看一集原声视频', days: [0,6], doneWeek: '' }
+      ];
+    }
+
+    function addLanguage() {
+      const input = document.getElementById('new-lang-input');
+      const name = input.value.trim();
+      if (!name) { document.getElementById('lang-input-hint').classList.remove('hidden'); return; }
+      document.getElementById('lang-input-hint').classList.add('hidden');
+      languages.push({ id: Date.now(), name, weeklyTasks: defaultWeeklyTasks(), streak: 0, lastCheckin: '', checkins: {} });
+      input.value = '';
+      saveLanguages(); renderLanguageList();
+    }
+
+    function renderLanguageList() {
+      const cards = document.getElementById('lang-cards');
+      const empty = document.getElementById('lang-empty');
+      cards.innerHTML = '';
+      languages.forEach(l => {
+        const wk = getWeekKey();
+        const done = l.weeklyTasks.filter(t => t.doneWeek === wk).length;
+        const total = l.weeklyTasks.length;
+        const pct = total ? Math.round(done / total * 100) : 0;
+        const div = document.createElement('div');
+        div.className = 'bg-white rounded-3xl shadow-sm p-4 cursor-pointer hover:shadow-md transition border border-transparent hover:border-green-200';
+        div.onclick = () => openLanguage(l.id);
+        div.innerHTML = '<div class="flex items-center justify-between">' +
+            '<h3 class="text-lg font-bold text-gray-800">' + escapeHtml(l.name) + '</h3>' +
+            '<span class="text-xs px-2 py-1 rounded-full bg-orange-50 text-orange-600">🔥 ' + (l.streak || 0) + ' 天</span>' +
+          '</div>' +
+          '<p class="text-gray-500 text-sm mt-2">' + (total ? (done + '/' + total + ' 项完成 · ' + pct + '%') : '还没有任务，点进去添加') + '</p>';
+        cards.appendChild(div);
+      });
+      if (languages.length === 0) empty.classList.remove('hidden'); else empty.classList.add('hidden');
+      document.getElementById('lang-count').textContent = languages.length ? (languages.length + ' 门语言') : '';
+      updateDashboard();
+    }
+
+    function openLanguage(id) {
+      activeLangId = id;
+      document.getElementById('lang-list-view').classList.add('hidden');
+      document.getElementById('lang-detail-view').classList.remove('hidden');
+      renderLanguageDetail();
+    }
+
+    function backToLangList() {
+      activeLangId = null;
+      document.getElementById('lang-detail-view').classList.add('hidden');
+      document.getElementById('lang-list-view').classList.remove('hidden');
+      renderLanguageList();
+    }
+
+    function getActiveLang() { return languages.find(l => l.id === activeLangId); }
+
+    function langWeekDone(t) { return t.doneWeek === getWeekKey(); }
+
+    function renderLanguageDetail() {
+      const l = getActiveLang();
+      if (!l) return;
+      const today = new Date().toISOString().slice(0, 10);
+      const checkedToday = l.checkins && l.checkins[today];
+      document.getElementById('lang-detail-name').textContent = '学习' + l.name;
+      document.getElementById('lang-streak-label').textContent = '🔥 连续学习 ' + (l.streak || 0) + ' 天';
+      document.getElementById('lang-checkin-label').textContent = checkedToday ? '今日已打卡 ✓' : '今日未打卡';
+
+      const wk = getWeekKey();
+      const done = l.weeklyTasks.filter(t => t.doneWeek === wk).length;
+      const total = l.weeklyTasks.length;
+      const pct = total ? Math.round(done / total * 100) : 0;
+      document.getElementById('lang-completed').textContent = done;
+      document.getElementById('lang-total').textContent = total;
+      document.getElementById('lang-progress-percent').textContent = pct + '%';
+      document.getElementById('lang-progress-bar').style.width = pct + '%';
+
+      const btn = document.getElementById('lang-checkin-btn');
+      if (checkedToday) {
+        btn.textContent = '今日已打卡 ✓';
+        btn.classList.remove('bg-green-700', 'hover:bg-green-800', 'text-white');
+        btn.classList.add('bg-green-100', 'text-green-700', 'cursor-default');
+      } else {
+        btn.textContent = '✅ 学完打卡';
+        btn.classList.add('bg-green-700', 'hover:bg-green-800', 'text-white');
+        btn.classList.remove('bg-green-100', 'text-green-700', 'cursor-default');
+      }
+
+      // 今日任务：只显示今天该做的
+      const wd = new Date().getDay();
+      document.getElementById('today-weekday-label').textContent = '星期' + WEEK_DAY_LABELS[wd];
+      const todayTasks = l.weeklyTasks.filter(t => !t.days || t.days.length === 0 || t.days.includes(wd));
+      const ulToday = document.getElementById('langtask-today');
+      ulToday.innerHTML = '';
+      todayTasks.forEach(t => {
+        const li = document.createElement('li');
+        li.className = 'flex items-center gap-3 py-3';
+        const doneNow = langWeekDone(t);
+        li.innerHTML = '<input type="checkbox" ' + (doneNow ? 'checked' : '') + ' onchange="toggleLangTask(' + t.id + ')" class="w-5 h-5 text-green-600 rounded focus:ring-green-500 cursor-pointer">' +
+          '<span class="flex-1 ' + (doneNow ? 'line-through text-gray-400' : 'text-gray-700') + '">' + escapeHtml(t.text) + '</span>';
+        ulToday.appendChild(li);
+      });
+      document.getElementById('langtask-today-empty').classList.toggle('hidden', todayTasks.length > 0);
+
+      // 本周计划：全部任务
+      const ul = document.getElementById('langtask-list');
+      ul.innerHTML = '';
+      l.weeklyTasks.forEach(t => {
+        const li = document.createElement('li');
+        li.className = 'flex items-center gap-3 py-3';
+        const doneNow = langWeekDone(t);
+        const dayBadges = (t.days && t.days.length)
+          ? t.days.map(d => '<span class="text-[10px] px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-500">' + WEEK_DAY_LABELS[d] + '</span>').join('')
+          : '<span class="text-[10px] px-1.5 py-0.5 rounded-full bg-green-50 text-green-600">每天</span>';
+        li.innerHTML = '<input type="checkbox" ' + (doneNow ? 'checked' : '') + ' onchange="toggleLangTask(' + t.id + ')" class="w-5 h-5 text-green-600 rounded focus:ring-green-500 cursor-pointer">' +
+          '<span class="flex-1 ' + (doneNow ? 'line-through text-gray-400' : 'text-gray-700') + '">' + escapeHtml(t.text) + '</span>' +
+          '<span class="flex gap-1 flex-wrap max-w-[42%] justify-end">' + dayBadges + '</span>' +
+          '<button onclick="deleteLangTask(' + t.id + ')" class="text-gray-400 hover:text-red-500 px-1 transition">✕</button>';
+        ul.appendChild(li);
+      });
+      document.getElementById('langtask-empty').classList.toggle('hidden', l.weeklyTasks.length > 0);
+      updateDashboard();
+    }
+
+    function updateStreak(l) {
+      const today = new Date().toISOString().slice(0, 10);
+      if (l.lastCheckin === today) return;
+      const yday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+      l.streak = (l.lastCheckin === yday) ? (l.streak || 0) + 1 : 1;
+      l.lastCheckin = today;
+    }
+
+    function checkInLanguage() {
+      const l = getActiveLang();
+      if (!l) return;
+      const today = new Date().toISOString().slice(0, 10);
+      if (!l.checkins) l.checkins = {};
+      if (l.checkins[today]) { alert('今天已经打卡啦，明天再来～'); return; }
+      l.checkins[today] = true;
+      updateStreak(l);
+      saveLanguages(); renderLanguageDetail();
+    }
+
+    function addLangWeeklyTask(text, days) {
+      const l = getActiveLang();
+      if (!l) return;
+      const val = (text || '').trim();
+      if (!val) return;
+      l.weeklyTasks.push({ id: Date.now(), text: val, days: days && days.length ? days : [], doneWeek: '' });
+      saveLanguages(); renderLanguageDetail();
+    }
+
+    function toggleLangTask(id) {
+      const l = getActiveLang();
+      if (!l) return;
+      const t = l.weeklyTasks.find(x => x.id === id);
+      if (t) { t.doneWeek = langWeekDone(t) ? '' : getWeekKey(); saveLanguages(); renderLanguageDetail(); }
+    }
+
+    function deleteLangTask(id) {
+      const l = getActiveLang();
+      if (!l) return;
+      l.weeklyTasks = l.weeklyTasks.filter(x => x.id !== id);
+      saveLanguages(); renderLanguageDetail();
+    }
+
+    let tempLangDays = [0,1,2,3,4,5,6];
+    function renderLangDayChips() {
+      const box = document.getElementById('langtask-days');
+      if (!box) return;
+      box.innerHTML = '';
+      WEEK_DAY_LABELS.forEach((lab, i) => {
+        const on = tempLangDays.includes(i);
+        const chip = document.createElement('button');
+        chip.type = 'button';
+        chip.textContent = lab;
+        chip.className = 'w-9 h-9 rounded-full text-sm font-medium transition ' + (on ? 'bg-green-600 text-white' : 'bg-gray-100 text-gray-500 hover:bg-gray-200');
+        chip.onclick = () => {
+          if (tempLangDays.includes(i)) tempLangDays = tempLangDays.filter(x => x !== i);
+          else tempLangDays.push(i);
+          renderLangDayChips();
+        };
+        box.appendChild(chip);
+      });
+    }
+
+    function openLangTaskModal() {
+      const input = document.getElementById('langtask-input');
+      input.value = '';
+      tempLangDays = [0,1,2,3,4,5,6];
+      renderLangDayChips();
+      document.getElementById('langtask-modal').classList.remove('hidden');
+      input.focus();
+    }
+
+    function closeLangTaskModal() { document.getElementById('langtask-modal').classList.add('hidden'); }
+
+    function confirmLangTaskModal() {
+      const input = document.getElementById('langtask-input');
+      const text = input.value.trim();
+      if (!text) { input.focus(); return; }
+      addLangWeeklyTask(text, tempLangDays.slice());
+      closeLangTaskModal();
+    }
+
+    document.getElementById('new-lang-input').addEventListener('keydown', e => { if (e.key === 'Enter') addLanguage(); });
+
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML.replace(/"/g, '&quot;');
+    }
+
+    /* ---------- 仪表盘概览更新 ---------- */
+    function updateDashboard() {
+      const total = tasks.length;
+      const completed = tasks.filter(t => t.completed).length;
+      document.getElementById('dash-progress').textContent = `${completed}/${total}`;
+      document.getElementById('dash-bar').style.width = (total ? Math.round((completed/total)*100) : 0) + '%';
+      const hd = document.getElementById('header-date');
+      if (hd) hd.textContent = `${Y}年${M}月${D}日`;
+      document.getElementById('dash-words').textContent = monthTotal().toLocaleString();
+      document.getElementById('dash-langs').textContent = (languages.length || 0) + ' 门';
+      const cw = currentWeekData();
+      document.getElementById('dash-book').textContent = cw.book ? ('《' + cw.book.title + '》') : '未设定';
+      document.getElementById('dash-insp').textContent = tasks.filter(t => t.category === 'inspiration' && !t.completed).length;
+    }
+
+    // ===== GitHub 跨设备同步 =====
+    const SYNC_KEYS = ['mossTasks', 'mossClimb', 'mossLitArchive', 'mossLanguages', 'mossExercise'];
+    const SYNC_FILE = 'moss-data.json';
+    let applyingRemote = false;
+    let pushTimer = null;
+
+    function getSyncConfig() { return JSON.parse(localStorage.getItem('mossSyncConfig')) || {}; }
+    function setSyncStatus(t) { const e = document.getElementById('sync-status'); if (e) e.textContent = t; }
+    function friendlyErr(e) {
+      const m = (e && e.message) || '';
+      if (m.indexOf('Failed to fetch') >= 0)
+        return '网络请求被拦截。最常见原因：你是双击文件（地址栏是 file://）打开的本页面，浏览器会禁止它联网。请改用 http://localhost 或部署后的网址打开。';
+      return m;
+    }
+    function setSyncMsg(t) { const e = document.getElementById('sync-msg'); if (e) e.textContent = t; }
+
+    function bundleLocalData() {
+      const o = {};
+      SYNC_KEYS.forEach(k => { const v = localStorage.getItem(k); if (v) o[k] = JSON.parse(v); });
+      return o;
+    }
+    function applyRemoteData(obj) {
+      if (obj.mossTasks !== undefined) { localStorage.setItem('mossTasks', JSON.stringify(obj.mossTasks)); tasks = obj.mossTasks; }
+      if (obj.mossClimb !== undefined) { localStorage.setItem('mossClimb', JSON.stringify(obj.mossClimb)); mossData = obj.mossClimb; }
+      if (obj.mossLitArchive !== undefined) { localStorage.setItem('mossLitArchive', JSON.stringify(obj.mossLitArchive)); litArchive = obj.mossLitArchive; }
+      if (obj.mossLanguages !== undefined) { localStorage.setItem('mossLanguages', JSON.stringify(obj.mossLanguages)); languages = obj.mossLanguages; }
+      if (obj.mossExercise !== undefined) { localStorage.setItem('mossExercise', JSON.stringify(obj.mossExercise)); exerciseData = obj.mossExercise; }
+    }
+
+    async function ghRequest(c, method, body) {
+      const fn = encodeURIComponent(c.filename || SYNC_FILE);
+      const url = `https://api.github.com/repos/${c.username}/${c.repo}/contents/${fn}` + (method === 'GET' ? `?ref=${c.branch || 'main'}` : '');
+      const headers = { 'Accept': 'application/vnd.github+json', 'Authorization': 'Bearer ' + c.token };
+      const res = await fetch(url, { method, headers, body: body ? JSON.stringify(body) : undefined });
+      if (res.status === 404) return null;
+      if (!res.ok) { const t = await res.text(); throw new Error('HTTP ' + res.status + ' ' + t.slice(0, 120)); }
+      return await res.json();
+    }
+    function b64encode(str) { return btoa(unescape(encodeURIComponent(str))); }
+    function b64decode(b64) { return decodeURIComponent(escape(atob(b64))); }
+
+    async function pushBundle(bundle) {
+      const c = getSyncConfig();
+      if (!c.enabled || !c.token || !c.username || !c.repo) return;
+      let sha; try { const r = await ghRequest(c, 'GET'); if (r) sha = r.sha; } catch (e) {}
+      const content = b64encode(JSON.stringify(bundle));
+      try {
+        await ghRequest(c, 'PUT', { message: 'MOSS sync', content, branch: c.branch || 'main', ...(sha ? { sha } : {}) });
+        setSyncStatus('已同步 ' + new Date().toLocaleTimeString());
+      } catch (e) { setSyncStatus('推送失败'); setSyncMsg('推送失败：' + friendlyErr(e)); }
+    }
+
+    async function pullFromGitHub() {
+      const c = getSyncConfig();
+      try {
+        const r = await ghRequest(c, 'GET');
+        if (r && r.content) {
+          const obj = JSON.parse(b64decode(r.content));
+          applyingRemote = true; applyRemoteData(obj); applyingRemote = false;
+          if (typeof filterTasks === 'function') filterTasks(currentFilter || 'dashboard');
+          setSyncStatus('已拉取 ' + new Date().toLocaleTimeString());
+          return obj;
+        }
+      } catch (e) { setSyncStatus('拉取失败'); setSyncMsg('拉取失败：' + friendlyErr(e)); }
+      return null;
+    }
+
+    async function syncNow() {
+      const c = getSyncConfig();
+      if (!c.enabled || !c.token || !c.username || !c.repo) { setSyncMsg('请先填写并保存同步设置，并勾选启用。'); return; }
+      setSyncStatus('同步中…'); setSyncMsg('');
+      let remote = null;
+      try { remote = await ghRequest(c, 'GET'); } catch (e) { setSyncStatus('拉取失败'); setSyncMsg('拉取失败：' + friendlyErr(e)); return; }
+      const local = bundleLocalData(); local.__updatedAt = Date.now();
+      if (remote && remote.content) {
+        try {
+          const robj = JSON.parse(b64decode(remote.content));
+          if (robj.__updatedAt && robj.__updatedAt > local.__updatedAt) {
+            applyingRemote = true; applyRemoteData(robj); applyingRemote = false;
+            if (typeof filterTasks === 'function') filterTasks(currentFilter || 'dashboard');
+            setSyncStatus('已拉取远程 ' + new Date().toLocaleTimeString()); setSyncMsg('远程数据较新，已下载到本机。'); return;
+          }
+        } catch (e) {}
+      }
+      pushBundle(local); setSyncMsg('已上传本地数据到仓库。');
+    }
+
+    // 一键发布：把页面 + PWA 文件上传到「网站仓库（公开）」，与私人数据仓库分离
+    async function publishSite() {
+      const c = getSyncConfig();
+      if (!c.token || !c.username || !c.siteRepo) { setSyncMsg('请先填写 用户名 / Token，并在「网站仓库（公开）」填一个公开仓库名，再发布。'); return; }
+      const branch = c.branch || 'main';
+      const repo = c.siteRepo;
+      setSyncMsg('正在读取本地文件并上传到「' + repo + '」…');
+      const files = ['index.html', 'manifest.webmanifest', 'sw.js', 'icon.svg'];
+      try {
+        for (const f of files) {
+          const text = await (await fetch(f)).text();
+          const content = b64encode(text);
+          let sha = null;
+          try {
+            const meta = await fetch(`https://api.github.com/repos/${c.username}/${repo}/contents/${encodeURIComponent(f)}?ref=${branch}`, {
+              headers: { 'Authorization': 'Bearer ' + c.token, 'Accept': 'application/vnd.github+json' }
+            });
+            if (meta.ok) { const j = await meta.json(); sha = j.sha; }
+          } catch (e) {}
+          const body = { message: 'publish MOSS workbench: ' + f, content, branch, ...(sha ? { sha } : {}) };
+          const res = await fetch(`https://api.github.com/repos/${c.username}/${repo}/contents/${encodeURIComponent(f)}`, {
+            method: 'PUT',
+            headers: { 'Authorization': 'Bearer ' + c.token, 'Accept': 'application/vnd.github+json', 'Content-Type': 'application/json' },
+            body: JSON.stringify(body)
+          });
+          if (!res.ok) { const t = await res.text(); throw new Error('上传 ' + f + ' 失败：HTTP ' + res.status + ' ' + t.slice(0, 140)); }
+        }
+        const pagesUrl = `https://${c.username}.github.io/${repo}/`;
+        setSyncMsg('✅ 已上传 4 个文件到「' + repo + '」！下一步：进该仓库 Settings → Pages → Source 选「main」分支保存；约 1–2 分钟后访问 ' + pagesUrl);
+      } catch (e) {
+        setSyncMsg('发布失败：' + friendlyErr(e));
+      }
+    }
+
+    function schedulePush() {
+      if (applyingRemote) return;
+      const c = getSyncConfig(); if (!c.enabled) return;
+      if (pushTimer) clearTimeout(pushTimer);
+      pushTimer = setTimeout(() => { const b = bundleLocalData(); b.__updatedAt = Date.now(); pushBundle(b); }, 1500);
+    }
+    (function overrideSetItem() {
+      const orig = Storage.prototype.setItem;
+      Storage.prototype.setItem = function (k, v) { orig.call(this, k, v); if (SYNC_KEYS.includes(k)) schedulePush(); };
+    })();
+
+    function openSyncSettings() {
+      const c = getSyncConfig();
+      document.getElementById('sync-user').value = c.username || '';
+      document.getElementById('sync-repo').value = c.repo || '';
+      document.getElementById('sync-site-repo').value = c.siteRepo || '';
+      document.getElementById('sync-branch').value = c.branch || 'main';
+      document.getElementById('sync-token').value = c.token || '';
+      document.getElementById('sync-enabled').checked = !!c.enabled;
+      setSyncMsg('');
+      document.getElementById('sync-modal').classList.remove('hidden');
+    }
+    function closeSyncSettings() { document.getElementById('sync-modal').classList.add('hidden'); }
+    function saveSyncConfig() {
+      const c = {
+        enabled: document.getElementById('sync-enabled').checked,
+        username: document.getElementById('sync-user').value.trim(),
+        repo: document.getElementById('sync-repo').value.trim(),
+        siteRepo: document.getElementById('sync-site-repo').value.trim(),
+        branch: document.getElementById('sync-branch').value.trim() || 'main',
+        token: document.getElementById('sync-token').value.trim(),
+        filename: SYNC_FILE
+      };
+      localStorage.setItem('mossSyncConfig', JSON.stringify(c));
+      setSyncMsg(c.enabled ? '设置已保存，已启用同步。' : '设置已保存（未启用）。');
+      if (c.enabled) syncNow();
+    }
+
+    function initSync() {
+      const c = getSyncConfig();
+      if (c.enabled && c.token && c.username && c.repo) {
+        setSyncStatus('同步中…');
+        pullFromGitHub();
+      }
+    }
+
+    // 初始化
+    document.getElementById('date-display').textContent = `${Y}年${M}月${D}日`;
+    filterTasks('dashboard');
+    initSync();
+  </script>
+
+  <!-- 注册 Service Worker：让工作台能离线打开、并可"安装"成 APP -->
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('sw.js').catch(() => {});
+      });
+    }
+  </script>
+</body>
+</html>
