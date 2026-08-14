@@ -1525,22 +1525,37 @@
     function applyRemoteData(obj) {
       applyingRemote = true;
       const localMeta = JSON.parse(localStorage.getItem('mossSyncMeta') || '{}');
-      const remoteMeta = obj.__meta || null; // null = 旧格式（无时间戳），一律采用远程
-      const assign = {
-        mossTasks: () => { tasks = obj.mossTasks; },
-        mossClimb: () => { mossData = obj.mossClimb; },
-        mossLitArchive: () => { litArchive = obj.mossLitArchive; },
-        mossLanguages: () => { languages = obj.mossLanguages; },
-        mossExercise: () => { exerciseData = obj.mossExercise; }
-      };
+      const remoteMeta = obj.__meta || null;
       SYNC_KEYS.forEach(k => {
         if (obj[k] === undefined) return;
-        const rTs = remoteMeta ? (remoteMeta[k] || 0) : Infinity;
-        const lTs = localMeta[k] || 0;
-        if (rTs >= lTs) {
-          localStorage.setItem(k, JSON.stringify(obj[k]));
-          localMeta[k] = remoteMeta ? rTs : Date.now();
-          if (assign[k]) assign[k]();
+        if (k === 'mossTasks' || k === 'mossLanguages') {
+          // 数组型：按 id 取并集，两端独有的都保留，不互相覆盖
+          const arr = JSON.parse(localStorage.getItem(k) || '[]');
+          const map = new Map();
+          arr.forEach(x => { if (x && x.id != null) map.set(x.id, x); });
+          (obj[k] || []).forEach(x => { if (x && x.id != null) map.set(x.id, x); });
+          const merged = Array.from(map.values());
+          localStorage.setItem(k, JSON.stringify(merged));
+          if (k === 'mossTasks') tasks = merged;
+          if (k === 'mossLanguages') languages = merged;
+          localMeta[k] = Math.max(localMeta[k] || 0, (remoteMeta && remoteMeta[k]) || 0, Date.now());
+        } else if (k === 'mossLitArchive') {
+          // 对象型：按周 key 浅合并，两端不同周的记录都保留
+          const local = JSON.parse(localStorage.getItem(k) || '{}');
+          const merged = Object.assign({}, local, obj[k]);
+          localStorage.setItem(k, JSON.stringify(merged));
+          litArchive = merged;
+          localMeta[k] = Math.max(localMeta[k] || 0, (remoteMeta && remoteMeta[k]) || 0, Date.now());
+        } else {
+          // 单体型：时间戳更新的覆盖
+          const rTs = remoteMeta ? (remoteMeta[k] || 0) : Infinity;
+          const lTs = localMeta[k] || 0;
+          if (rTs >= lTs) {
+            localStorage.setItem(k, JSON.stringify(obj[k]));
+            if (k === 'mossClimb') mossData = obj[k];
+            if (k === 'mossExercise') exerciseData = obj[k];
+            localMeta[k] = remoteMeta ? rTs : Date.now();
+          }
         }
       });
       localStorage.setItem('mossSyncMeta', JSON.stringify(localMeta));
@@ -1655,7 +1670,8 @@
 
     function schedulePush() {
       if (applyingRemote) return;
-      const c = getSyncConfig(); if (!c.enabled) return;
+      const c = getSyncConfig();
+      if (!c.token || !c.username || !c.repo) return; // 没填凭据就不推送（也没意义）
       if (pushTimer) clearTimeout(pushTimer);
       pushTimer = setTimeout(() => { const b = bundleLocalData(); b.__updatedAt = Date.now(); pushBundle(b); }, 1500);
     }
@@ -1703,7 +1719,7 @@
 
     function initSync() {
       const c = getSyncConfig();
-      if (c.enabled && c.token && c.username && c.repo) {
+      if (c.token && c.username && c.repo) {
         setSyncStatus('同步中…');
         pullFromGitHub();
       }
