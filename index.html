@@ -1296,7 +1296,8 @@
     }
 
     // 同名语言自动去重（两台设备各自建过同一门语言会产生两条不同 id 的记录）：
-    // 保留 _ts 较新的一条，把另一条标成已删除（带时间戳 → 删除会随同步传播，不会复活）。
+    // 合并成一条，保留较新者，并把另一条的「打卡日期 / 周任务完成 / 连续天数」并进来（不丢数据）。
+    // 被丢弃的那条标成已删除（带时间戳 → 删除会随同步传播，不会复活）。
     function dedupLanguages() {
       const seen = new Map();
       let changed = false;
@@ -1306,9 +1307,30 @@
         if (!key) continue;
         const prev = seen.get(key);
         if (!prev) { seen.set(key, l); continue; }
-        if ((l._ts || 0) > (prev._ts || 0)) { prev._del = true; prev._ts = Date.now(); seen.set(key, l); }
-        else { l._del = true; l._ts = Date.now(); }
+        let keep, drop;
+        if ((l._ts || 0) >= (prev._ts || 0)) { keep = l; drop = prev; }
+        else { keep = prev; drop = l; }
+        // 合并打卡日期（并集，谁打过都保留）
+        if (drop.checkins) {
+          keep.checkins = keep.checkins || {};
+          for (const d in drop.checkins) if (drop.checkins[d] && !keep.checkins[d]) keep.checkins[d] = true;
+        }
+        // 合并每周任务（同 id 取已完成状态；只在一端有的任务补进来）
+        if (drop.weeklyTasks) {
+          keep.weeklyTasks = keep.weeklyTasks || [];
+          const km = new Map(keep.weeklyTasks.map(t => [t.id, t]));
+          drop.weeklyTasks.forEach(t => {
+            const k = km.get(t.id);
+            if (k) { if (t.doneWeek && !k.doneWeek) k.doneWeek = t.doneWeek; }
+            else { km.set(t.id, t); keep.weeklyTasks.push(t); }
+          });
+        }
+        if ((drop.streak || 0) > (keep.streak || 0)) keep.streak = drop.streak;
+        if ((drop.lastCheckin || '') > (keep.lastCheckin || '')) keep.lastCheckin = drop.lastCheckin;
+        keep._ts = Math.max(keep._ts || 0, drop._ts || 0, Date.now());
+        drop._del = true; drop._ts = Date.now();
         changed = true;
+        seen.set(key, keep);
       }
       if (changed) saveLanguages();
       return changed;
@@ -1836,20 +1858,35 @@
       }
     }
 
-    // 本机有任何改动 → 标脏，1.2 秒后自动同步一次（不再需要手动点）
+    // 本机有任何改动 → 标脏，600ms 后自动同步一次（不再需要手动点）
     function schedulePush() {
       if (applyingRemote) return;
       const c = getSyncConfig();
       if (!c.token || !c.username || !c.repo) return;
       dirty = true;
       if (pushTimer) clearTimeout(pushTimer);
-      pushTimer = setTimeout(() => { autoSync(); }, 1200);
+      pushTimer = setTimeout(() => { autoSync(); }, 600);
     }
 
-    // 每隔 20 秒自动拉一次云端；切回页面 / 窗口获焦时也立刻拉，保证近实时
-    setInterval(() => { if (!document.hidden) autoSync(); }, 20000);
-    document.addEventListener('visibilitychange', () => { if (!document.hidden) autoSync(); });
+    // 立刻把本机数据推到云端（切后台 / 关页面时调用，确保改动不丢）
+    async function flushNow() {
+      const c = getSyncConfig();
+      if (!c.token || !c.username || !c.repo) return;
+      if (pushing) { dirty = true; return; }
+      pushing = true;
+      try { await pushBundle(bundleLocalData()); setSyncStatus('已同步 ' + new Date().toLocaleTimeString()); }
+      catch (e) { setSyncStatus('同步出错'); setSyncMsg('同步出错：' + friendlyErr(e)); }
+      finally { pushing = false; }
+    }
+
+    // 每隔 10 秒自动拉一次云端；回到前台 / 窗口获焦时立刻拉，保证近实时
+    setInterval(() => { if (!document.hidden) autoSync(); }, 10000);
+    document.addEventListener('visibilitychange', () => {
+      if (document.hidden) flushNow();   // 切到后台立刻上传，避免被系统挂起后丢失改动
+      else autoSync();                   // 回到前台立刻拉取，看到另一端最新
+    });
     window.addEventListener('focus', () => autoSync());
+    window.addEventListener('pagehide', () => flushNow());   // 页面关闭 / 切走前也上传一次
     (function overrideSetItem() {
       const orig = Storage.prototype.setItem;
       Storage.prototype.setItem = function (k, v) {
