@@ -1526,6 +1526,7 @@
     }
     function applyRemoteData(obj) {
       applyingRemote = true;
+      const before = SYNC_KEYS.map(k => localStorage.getItem(k)).join(' ');
       const localMeta = JSON.parse(localStorage.getItem('mossSyncMeta') || '{}');
       const remoteMeta = obj.__meta || null;
       SYNC_KEYS.forEach(k => {
@@ -1562,6 +1563,8 @@
       });
       localStorage.setItem('mossSyncMeta', JSON.stringify(localMeta));
       applyingRemote = false;
+      const after = SYNC_KEYS.map(k => localStorage.getItem(k)).join(' ');
+      return after !== before;
     }
 
     async function ghRequest(c, method, body) {
@@ -1576,7 +1579,7 @@
     function b64encode(str) { return btoa(unescape(encodeURIComponent(str))); }
     function b64decode(b64) { return decodeURIComponent(escape(atob(b64))); }
 
-    async function pushBundle(bundle) {
+    async function pushBundle(bundle, attempt = 1) {
       const c = getSyncConfig();
       if (!c.token || !c.username || !c.repo) return;
       let sha; try { const r = await ghRequest(c, 'GET'); if (r) sha = r.sha; } catch (e) {}
@@ -1584,7 +1587,14 @@
       try {
         await ghRequest(c, 'PUT', { message: 'MOSS sync', content, branch: c.branch || 'main', ...(sha ? { sha } : {}) });
         setSyncStatus('已同步 ' + new Date().toLocaleTimeString());
-      } catch (e) { setSyncStatus('推送失败'); setSyncMsg('推送失败：' + friendlyErr(e)); }
+      } catch (e) {
+        if (attempt < 3 && e.message && e.message.indexOf('409') >= 0) {
+          // sha 过期，等一会儿重新取最新 sha 再试
+          await new Promise(r => setTimeout(r, 700));
+          return pushBundle(bundle, attempt + 1);
+        }
+        setSyncStatus('推送失败'); setSyncMsg('推送失败：' + friendlyErr(e));
+      }
     }
 
     async function pullFromGitHub() {
@@ -1606,18 +1616,9 @@
       const c = getSyncConfig();
       if (!c.token || !c.username || !c.repo) { setSyncMsg('请先填写并保存同步设置（用户名 / 数据仓库名 / Token）。'); return; }
       setSyncStatus('同步中…'); setSyncMsg('');
-      try {
-        const remote = await ghRequest(c, 'GET');
-        if (remote && remote.content) {
-          const robj = JSON.parse(b64decode(remote.content));
-          applyRemoteData(robj); // 按模块合并到本地
-          setSyncStatus('已合并 ' + new Date().toLocaleTimeString());
-        }
-        const b = bundleLocalData();
-        pushBundle(b); // 把合并结果上传，两端尽快一致
-        setSyncMsg('已与仓库同步（手机和电脑各自的最新改动都会保留，不会互相覆盖）。');
-        if (typeof filterTasks === 'function') filterTasks(currentFilter || 'dashboard');
-      } catch (e) { setSyncStatus('同步失败'); setSyncMsg('同步失败：' + friendlyErr(e)); }
+      dirty = true; // 手动点时强制推一次
+      await autoSync();
+      setSyncMsg('已同步：本机与云端数据已合并，任意一端的改动都会保留、不会丢失。之后会自动同步，不用再手动点。');
     }
 
     // 一键发布：把页面 + PWA 文件上传到「网站仓库（公开）」，与私人数据仓库分离
@@ -1721,13 +1722,63 @@
       box.textContent = lines.join('\n');
     }
 
+    let pushing = false;
+    let dirty = false;
+
+    // 一键重渲染所有模块（拉取远端数据后调用，保证 UI 立即刷新）
+    function renderAll() {
+      try { if (typeof filterTasks === 'function') filterTasks(currentFilter || 'dashboard'); } catch (e) {}
+      try { if (typeof renderLiterature === 'function') renderLiterature(); } catch (e) {}
+      try { if (typeof renderClimb === 'function') renderClimb(); } catch (e) {}
+      try { if (typeof renderExercise === 'function') renderExercise(); } catch (e) {}
+      try { if (typeof renderLanguageList === 'function') renderLanguageList(); } catch (e) {}
+      try { if (typeof renderLanguageDetail === 'function') renderLanguageDetail(); } catch (e) {}
+      try { if (typeof updateDashboard === 'function') updateDashboard(); } catch (e) {}
+    }
+
+    // 核心同步：先拉云端 → 合并到本机 → 再把合并结果推回云端。
+    // 这样云端永远保存「两端并集」，任意一端改了，另一端最多 20 秒内自动出现。
+    async function autoSync() {
+      const c = getSyncConfig();
+      if (!c.token || !c.username || !c.repo) return;
+      if (pushing) return;
+      pushing = true;
+      try {
+        const r = await ghRequest(c, 'GET');
+        let changed = false;
+        if (r && r.content) {
+          const obj = JSON.parse(b64decode(r.content));
+          changed = applyRemoteData(obj); // 按模块合并（数组取并集，不互相覆盖）
+          if (changed) renderAll();
+        }
+        if (dirty || changed) {
+          const b = bundleLocalData();
+          await pushBundle(b); // 把合并结果推回云端，保证两端收敛
+          dirty = false;
+        }
+        setSyncStatus('已同步 ' + new Date().toLocaleTimeString());
+      } catch (e) {
+        setSyncStatus('同步出错');
+        setSyncMsg('同步出错：' + friendlyErr(e));
+      } finally {
+        pushing = false;
+      }
+    }
+
+    // 本机有任何改动 → 标脏，1.2 秒后自动同步一次（不再需要手动点）
     function schedulePush() {
       if (applyingRemote) return;
       const c = getSyncConfig();
-      if (!c.token || !c.username || !c.repo) return; // 没填凭据就不推送（也没意义）
+      if (!c.token || !c.username || !c.repo) return;
+      dirty = true;
       if (pushTimer) clearTimeout(pushTimer);
-      pushTimer = setTimeout(() => { const b = bundleLocalData(); b.__updatedAt = Date.now(); pushBundle(b); }, 1500);
+      pushTimer = setTimeout(() => { autoSync(); }, 1200);
     }
+
+    // 每隔 20 秒自动拉一次云端；切回页面 / 窗口获焦时也立刻拉，保证近实时
+    setInterval(() => { if (!document.hidden) autoSync(); }, 20000);
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) autoSync(); });
+    window.addEventListener('focus', () => autoSync());
     (function overrideSetItem() {
       const orig = Storage.prototype.setItem;
       Storage.prototype.setItem = function (k, v) {
@@ -1774,7 +1825,8 @@
       const c = getSyncConfig();
       if (c.token && c.username && c.repo) {
         setSyncStatus('同步中…');
-        pullFromGitHub();
+        dirty = true; // 首次也把本机数据推上去
+        autoSync();
       }
     }
 
