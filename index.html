@@ -93,7 +93,7 @@
         </header>
 
         <!-- ========== 仪表盘（首页网格卡片） ========== -->
-        <div id="dashboard-view" class="px-5 pb-24 space-y-4">
+        <div id="dashboard-view" class="px-5 pb-32 space-y-4">
 
           <!-- 欢迎横幅 -->
           <div class="bg-white rounded-3xl p-5 shadow-sm flex items-start gap-4 dashboard-card">
@@ -166,7 +166,7 @@
         </div><!-- /dashboard-view -->
 
         <!-- ========== 模块详情页 ========== -->
-        <div id="detail-view" class="hidden px-5 pb-24 space-y-4">
+        <div id="detail-view" class="hidden px-5 pb-32 space-y-4">
           <div class="sticky top-0 z-30 -mx-5 px-5 py-3 flex items-center justify-between bg-[#7a9e7e]">
             <button onclick="backToDashboard()" class="w-9 h-9 rounded-full bg-white/20 hover:bg-white/30 text-white flex items-center justify-center transition">
               ←
@@ -565,7 +565,7 @@
         <!-- 移动端底部导航（窄屏显示） -->
         <nav class="md:hidden fixed bottom-0 left-0 right-0 z-40 flex justify-center pointer-events-none">
           <div class="pointer-events-auto">
-            <div class="bg-white/95 backdrop-blur-md rounded-t-3xl shadow-[0_-4px_20px_rgba(0,0,0,0.08)] px-1 py-2 flex items-center justify-around w-screen max-w-[600px]">
+            <div class="bg-white/95 backdrop-blur-md rounded-t-3xl shadow-[0_-4px_20px_rgba(0,0,0,0.08)] px-1 py-2 flex items-center justify-around w-screen max-w-[600px]" style="padding-bottom: calc(0.5rem + env(safe-area-inset-bottom));">
               <button onclick="filterTasks('dashboard')" class="nav-item flex flex-col items-center gap-1 px-3 py-2 text-gray-500 text-[11px] transition" data-nav="dashboard">
                 <span class="text-xl">🏠</span><span>全部</span>
                 <span class="nav-dot w-1 h-1 rounded-full bg-green-700 mt-0.5"></span>
@@ -660,13 +660,25 @@
     ];
     let tasks = JSON.parse(localStorage.getItem('mossTasks')) || defaultTasks;
     tasks.forEach(t => { if (t.category === 'writing') t.category = 'inspiration'; });
+    tasks.forEach(t => { if (t._ts == null) t._ts = 1; if (t._del == null) t._del = false; });
     let currentFilter = 'dashboard';
 
-    function saveTasks() { localStorage.setItem('mossTasks', JSON.stringify(tasks)); }
+    function saveTasks() {
+      const prev = JSON.parse(localStorage.getItem('mossTasks') || '[]');
+      const prevMap = new Map(prev.map(x => [x.id, x]));
+      const sig = x => { const c = Object.assign({}, x); delete c._ts; return JSON.stringify(c); };
+      tasks.forEach(t => {
+        if (t._ts == null) t._ts = 1;
+        if (t._del == null) t._del = false;
+        const p = prevMap.get(t.id);
+        if (!p || sig(p) !== sig(t)) t._ts = Date.now(); // 只在“这条记录本身被改动”时刷新时间戳，避免改动别的记录把整组时间戳都刷新（否则会导致删除被复活）
+      });
+      localStorage.setItem('mossTasks', JSON.stringify(tasks));
+    }
 
     function renderTasks() {
       const listEl = document.getElementById('task-list');
-      const filtered = tasks.filter(t => (currentFilter === 'all' || t.category === currentFilter) && t.category !== 'inspiration' && t.category !== 'literature' && t.category !== 'language');
+      const filtered = tasks.filter(t => (currentFilter === 'all' || t.category === currentFilter) && t.category !== 'inspiration' && t.category !== 'literature' && t.category !== 'language' && !t._del);
       listEl.innerHTML = '';
       if (filtered.length === 0) {
         document.getElementById('empty-state').classList.remove('hidden');
@@ -704,12 +716,16 @@
       const t = tasks.find(x => x.id === id);
       if (t) { t.completed = !t.completed; saveTasks(); renderTasks(); }
     }
-    function deleteTask(id) { tasks = tasks.filter(x => x.id !== id); saveTasks(); renderTasks(); }
+    function deleteTask(id) {
+      const t = tasks.find(x => x.id === id);
+      if (t) { t._del = true; t._ts = Date.now(); } // 标记删除（带时间戳），随同步传播到另一端，不会复活
+      saveTasks(); renderTasks();
+    }
     function addTask() {
       const input = document.getElementById('new-task-input');
       const text = input.value.trim();
       if (!text) return;
-      tasks.push({ id: Date.now(), text, category: document.getElementById('new-task-category').value, completed: false });
+      tasks.push({ id: Date.now(), text, category: document.getElementById('new-task-category').value, completed: false, _ts: Date.now(), _del: false });
       input.value = ''; saveTasks(); renderTasks();
     }
     document.getElementById('new-task-input').addEventListener('keypress', e => { if (e.key === 'Enter') addTask(); });
@@ -717,7 +733,7 @@
     /* ---------- 网文写作 · 灵感记录 ---------- */
     function renderInspiration() {
       const listEl = document.getElementById('insp-list');
-      const items = tasks.filter(t => t.category === 'inspiration');
+      const items = tasks.filter(t => t.category === 'inspiration' && !t._del);
       listEl.innerHTML = '';
       if (items.length === 0) {
         document.getElementById('insp-empty').classList.remove('hidden');
@@ -1254,6 +1270,7 @@
     /* ---------- 语言学习 · 多语言管理（每周计划模式） ---------- */
     const WEEK_DAY_LABELS = ['日', '一', '二', '三', '四', '五', '六'];
     let languages = JSON.parse(localStorage.getItem('mossLanguages')) || [];
+    languages.forEach(l => { if (l._ts == null) l._ts = 1; if (l._del == null) l._del = false; });
     let activeLangId = null;
 
     // 旧版「每日任务」迁移为「每周计划」
@@ -1265,7 +1282,37 @@
       if (!Array.isArray(l.weeklyTasks)) l.weeklyTasks = [];
     });
 
-    function saveLanguages() { localStorage.setItem('mossLanguages', JSON.stringify(languages)); }
+    function saveLanguages() {
+      const prev = JSON.parse(localStorage.getItem('mossLanguages') || '[]');
+      const prevMap = new Map(prev.map(x => [x.id, x]));
+      const sig = x => { const c = Object.assign({}, x); delete c._ts; return JSON.stringify(c); };
+      languages.forEach(l => {
+        if (l._ts == null) l._ts = 1;
+        if (l._del == null) l._del = false;
+        const p = prevMap.get(l.id);
+        if (!p || sig(p) !== sig(l)) l._ts = Date.now();
+      });
+      localStorage.setItem('mossLanguages', JSON.stringify(languages));
+    }
+
+    // 同名语言自动去重（两台设备各自建过同一门语言会产生两条不同 id 的记录）：
+    // 保留 _ts 较新的一条，把另一条标成已删除（带时间戳 → 删除会随同步传播，不会复活）。
+    function dedupLanguages() {
+      const seen = new Map();
+      let changed = false;
+      for (const l of languages) {
+        if (l._del) continue;
+        const key = (l.name || '').trim().toLowerCase();
+        if (!key) continue;
+        const prev = seen.get(key);
+        if (!prev) { seen.set(key, l); continue; }
+        if ((l._ts || 0) > (prev._ts || 0)) { prev._del = true; prev._ts = Date.now(); seen.set(key, l); }
+        else { l._del = true; l._ts = Date.now(); }
+        changed = true;
+      }
+      if (changed) saveLanguages();
+      return changed;
+    }
 
     // 新语言默认给一套每周计划，一睁眼就能直接做
     function defaultWeeklyTasks() {
@@ -1284,7 +1331,7 @@
       const name = input.value.trim();
       if (!name) { document.getElementById('lang-input-hint').classList.remove('hidden'); return; }
       document.getElementById('lang-input-hint').classList.add('hidden');
-      languages.push({ id: Date.now(), name, weeklyTasks: defaultWeeklyTasks(), streak: 0, lastCheckin: '', checkins: {} });
+      languages.push({ id: Date.now(), name, weeklyTasks: defaultWeeklyTasks(), streak: 0, lastCheckin: '', checkins: {}, _ts: Date.now(), _del: false });
       input.value = '';
       saveLanguages(); renderLanguageList();
     }
@@ -1293,7 +1340,7 @@
       const l = languages.find(x => x.id === id);
       if (!l) return;
       if (!confirm('确定删除「' + (l.name || '') + '」这门语言及其所有任务？')) return;
-      languages = languages.filter(x => x.id !== id);
+      l._del = true; l._ts = Date.now(); // 标记删除（带时间戳），随同步传播到另一端
       saveLanguages(); renderLanguageList();
     }
 
@@ -1301,7 +1348,7 @@
       const cards = document.getElementById('lang-cards');
       const empty = document.getElementById('lang-empty');
       cards.innerHTML = '';
-      languages.forEach(l => {
+      languages.forEach(l => { if (l._del) return;
         const wk = getWeekKey();
         const done = l.weeklyTasks.filter(t => t.doneWeek === wk).length;
         const total = l.weeklyTasks.length;
@@ -1319,8 +1366,9 @@
           '<p class="text-gray-500 text-sm mt-2">' + (total ? (done + '/' + total + ' 项完成 · ' + pct + '%') : '还没有任务，点进去添加') + '</p>';
         cards.appendChild(div);
       });
-      if (languages.length === 0) empty.classList.remove('hidden'); else empty.classList.add('hidden');
-      document.getElementById('lang-count').textContent = languages.length ? (languages.length + ' 门语言') : '';
+      const liveLangCount = languages.filter(l => !l._del).length;
+      if (liveLangCount === 0) empty.classList.remove('hidden'); else empty.classList.add('hidden');
+      document.getElementById('lang-count').textContent = liveLangCount ? (liveLangCount + ' 门语言') : '';
       updateDashboard();
     }
 
@@ -1338,7 +1386,7 @@
       renderLanguageList();
     }
 
-    function getActiveLang() { return languages.find(l => l.id === activeLangId); }
+    function getActiveLang() { return languages.find(l => l.id === activeLangId && !l._del); }
 
     function langWeekDone(t) { return t.doneWeek === getWeekKey(); }
 
@@ -1498,17 +1546,19 @@
 
     /* ---------- 仪表盘概览更新 ---------- */
     function updateDashboard() {
-      const total = tasks.length;
-      const completed = tasks.filter(t => t.completed).length;
+      const liveTasks = tasks.filter(t => !t._del);
+      const total = liveTasks.length;
+      const completed = liveTasks.filter(t => t.completed).length;
       document.getElementById('dash-progress').textContent = `${completed}/${total}`;
       document.getElementById('dash-bar').style.width = (total ? Math.round((completed/total)*100) : 0) + '%';
       const hd = document.getElementById('header-date');
       if (hd) hd.textContent = `${Y}年${M}月${D}日`;
       document.getElementById('dash-words').textContent = monthTotal().toLocaleString();
-      document.getElementById('dash-langs').textContent = (languages.length || 0) + ' 门';
+      const liveLangs = languages.filter(l => !l._del).length;
+      document.getElementById('dash-langs').textContent = (liveLangs || 0) + ' 门';
       const cw = currentWeekData();
       document.getElementById('dash-book').textContent = cw.book ? ('《' + cw.book.title + '》') : '未设定';
-      document.getElementById('dash-insp').textContent = tasks.filter(t => t.category === 'inspiration' && !t.completed).length;
+      document.getElementById('dash-insp').textContent = tasks.filter(t => t.category === 'inspiration' && !t.completed && !t._del).length;
     }
 
     // ===== GitHub 跨设备同步 =====
@@ -1533,53 +1583,52 @@
       o.__meta = JSON.parse(localStorage.getItem('mossSyncMeta') || '{}');
       return o;
     }
+    // 按 id 合并两个数组：每条记录带 _ts（最后修改时间）与 _del（是否已删除）。
+    // 同名 id 取 _ts 较大者（后改的赢）；删除也带时间戳，因此“在某端删除”会随同步传播到另一端，不会复活。
+    function mergeById(localArr, remoteArr) {
+      const map = new Map();
+      const push = (x) => {
+        if (!x || x.id == null) return;
+        const cur = map.get(x.id);
+        if (!cur) { map.set(x.id, x); return; }
+        const ct = cur._ts || 0, xt = x._ts || 0;
+        if (xt > ct) map.set(x.id, x);
+        else if (xt === ct && !x._del && cur._del) map.set(x.id, x); // 时间戳相同：保留“未删除”版本
+      };
+      (localArr || []).forEach(push);
+      (remoteArr || []).forEach(push);
+      return Array.from(map.values());
+    }
+
     function applyRemoteData(obj) {
       applyingRemote = true;
       const before = SYNC_KEYS.map(k => localStorage.getItem(k)).join(' ');
       const localMeta = JSON.parse(localStorage.getItem('mossSyncMeta') || '{}');
       const remoteMeta = obj.__meta || null;
-      let keptLocal = false; // 本次合并是否有“本机刚改、压过云端”的键，需要立即回传云端
       SYNC_KEYS.forEach(k => {
         if (obj[k] === undefined) return;
-        const justEdited = (Date.now() - (recentEdit[k] || 0)) < 120000; // 本机 120 秒内刚改过 → 这次合并不让云端旧值覆盖本机
         if (k === 'mossTasks' || k === 'mossLanguages') {
-          // 数组型：按 id 取并集，两端独有的都保留，不互相覆盖
+          // 数组型：按 id 做“后改赢 + 删除传播”的合并
           const arr = JSON.parse(localStorage.getItem(k) || '[]');
-          const map = new Map();
-          arr.forEach(x => { if (x && x.id != null) map.set(x.id, x); });
-          (obj[k] || []).forEach(x => { if (x && x.id != null) map.set(x.id, x); });
-          const merged = Array.from(map.values());
+          const merged = mergeById(arr, obj[k] || []);
           localStorage.setItem(k, JSON.stringify(merged));
           if (k === 'mossTasks') tasks = merged;
-          if (k === 'mossLanguages') languages = merged;
+          if (k === 'mossLanguages') { languages = merged; dedupLanguages(); }
           localMeta[k] = Math.max(localMeta[k] || 0, (remoteMeta && remoteMeta[k]) || 0, Date.now());
-        } else if (k === 'mossLitArchive') {
-          // 对象型：同一周被两端都改时，按时间戳后写覆盖（谁后改谁赢）；不同周都保留
-          const local = JSON.parse(localStorage.getItem(k) || '{}');
+        } else {
+          // 单体型（雪山打卡 / 锻炼 / 文学周记）：时间戳更新的覆盖，保证两端收敛到最新一份
           const rTs = remoteMeta ? (remoteMeta[k] || 0) : 0;
           const lTs = localMeta[k] || 0;
-          // 本机刚改过则本机赢（云端旧值不能覆盖）；否则按时间戳后写覆盖
-          const merged = (justEdited || rTs > lTs) ? Object.assign({}, obj[k], local) : Object.assign({}, local, obj[k]);
-          if (justEdited) keptLocal = true;
-          localStorage.setItem(k, JSON.stringify(merged));
-          litArchive = merged;
-          localMeta[k] = Math.max(lTs, rTs, Date.now());
-        } else {
-          // 单体型：时间戳更新的覆盖
-          const rTs = remoteMeta ? (remoteMeta[k] || 0) : Infinity;
-          const lTs = localMeta[k] || 0;
-          if (!justEdited && rTs >= lTs) {
+          if (rTs >= lTs) {
             localStorage.setItem(k, JSON.stringify(obj[k]));
             if (k === 'mossClimb') mossData = obj[k];
             if (k === 'mossExercise') exerciseData = obj[k];
+            if (k === 'mossLitArchive') litArchive = obj[k];
             localMeta[k] = remoteMeta ? rTs : Date.now();
-          } else if (justEdited) {
-            keptLocal = true; // 本机刚改过，保留本地值，稍后回传云端
           }
         }
       });
       localStorage.setItem('mossSyncMeta', JSON.stringify(localMeta));
-      if (keptLocal) dirty = true; // 本机刚改的内容压过了云端，立即回传云端，避免被旧值反咬
       applyingRemote = false;
       const after = SYNC_KEYS.map(k => localStorage.getItem(k)).join(' ');
       return after !== before;
@@ -1642,9 +1691,9 @@
     // 一键发布：把页面 + PWA 文件上传到「网站仓库（公开）」，与私人数据仓库分离
     async function publishSite() {
       const c = getSyncConfig();
-      if (!c.token || !c.username || !c.siteRepo) { setSyncMsg('请先填写 用户名 / Token，并在「网站仓库（公开）」填一个公开仓库名，再发布。'); return; }
+      if (!c.token || !c.username) { setSyncMsg('请先在上方填写 GitHub 用户名 和 Token（网站仓库默认 Moss-web，可不填），保存后再点发布。'); return; }
       const branch = c.branch || 'main';
-      const repo = c.siteRepo;
+      const repo = c.siteRepo || 'Moss-web';
       setSyncMsg('正在读取本地文件并上传到「' + repo + '」…');
       const files = ['index.html', 'manifest.webmanifest', 'sw.js', 'icon.svg'];
 
@@ -1742,7 +1791,7 @@
 
     let pushing = false;
     let dirty = false;
-    const recentEdit = {}; // 记录本机最近一次手动编辑时间，用于“编辑锁”
+    // （已移除脆弱的“编辑锁”，改为按时间戳后写覆盖，删除也能跨端传播）
 
     // 一键重渲染所有模块（拉取远端数据后调用，保证 UI 立即刷新）
     function renderAll() {
@@ -1811,7 +1860,7 @@
             m[k] = Date.now();
           orig.call(this, 'mossSyncMeta', JSON.stringify(m));
         } catch (e) {}
-        if (!applyingRemote) recentEdit[k] = Date.now(); // 标记本机刚手动改过
+        // 本机手动改动已通过上面的标脏机制触发自动同步
         schedulePush();
       }
       };
@@ -1863,7 +1912,16 @@
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
-        navigator.serviceWorker.register('sw.js').catch(() => {});
+        navigator.serviceWorker.register('sw.js').then(reg => {
+          reg.update();
+          setInterval(() => { try { reg.update(); } catch (e) {} }, 60000); // 每分钟检查一次新版本
+        }).catch(() => {});
+      });
+      // 新版本安装完成后自动刷新，确保手机/电脑立刻用上新代码（根治“一直跑旧版”）
+      let _reloaded = false;
+      navigator.serviceWorker.addEventListener('controllerchange', () => {
+        if (_reloaded) return; _reloaded = true;
+        location.reload();
       });
     }
   </script>
