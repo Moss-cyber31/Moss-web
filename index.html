@@ -1675,11 +1675,23 @@
       return after !== before;
     }
 
-    async function ghRequest(c, method, body) {
+    async function ghRequest(c, method, body, timeoutMs = 20000) {
       const fn = encodeURIComponent(c.filename || SYNC_FILE);
       const url = `https://api.github.com/repos/${c.username}/${c.repo}/contents/${fn}` + (method === 'GET' ? `?ref=${c.branch || 'main'}` : '');
       const headers = { 'Accept': 'application/vnd.github+json', 'Authorization': 'Bearer ' + c.token };
-      const res = await fetch(url, { method, headers, body: body ? JSON.stringify(body) : undefined });
+      // 关键修复：给请求加超时。否则一旦某次请求卡住（网络偶尔抖一下），
+      // 下面的 pushing 锁永远解不开，整个同步就永久死锁——表现为“偶尔成功一次后彻底零同步”。
+      const ctrl = new AbortController();
+      const tid = setTimeout(() => ctrl.abort(), timeoutMs);
+      let res;
+      try {
+        res = await fetch(url, { method, headers, body: body ? JSON.stringify(body) : undefined, signal: ctrl.signal });
+      } catch (e) {
+        clearTimeout(tid);
+        if (e && e.name === 'AbortError') throw new Error('请求超时（' + (timeoutMs / 1000) + 's 无响应，已自动重试）');
+        throw e;
+      }
+      clearTimeout(tid);
       if (res.status === 404) return null;
       if (!res.ok) { const t = await res.text(); throw new Error('HTTP ' + res.status + ' ' + t.slice(0, 120)); }
       return await res.json();
@@ -1831,6 +1843,7 @@
     }
 
     let pushing = false;
+    let pushStart = 0;
     let dirty = false;
     // （已移除脆弱的“编辑锁”，改为按时间戳后写覆盖，删除也能跨端传播）
 
@@ -1855,6 +1868,7 @@
       if (!c.token || !c.username || !c.repo) return;
       if (pushing) return;
       pushing = true;
+      pushStart = Date.now();
       try {
         const r = await ghRequest(c, 'GET');
         let changed = false;
@@ -1893,13 +1907,18 @@
       if (!c.token || !c.username || !c.repo) return;
       if (pushing) { dirty = true; return; }
       pushing = true;
+      pushStart = Date.now();
       try { await pushBundle(bundleLocalData()); setSyncStatus('已同步 ' + new Date().toLocaleTimeString()); }
       catch (e) { setSyncStatus('同步出错'); setSyncMsg('同步出错：' + friendlyErr(e)); }
       finally { pushing = false; }
     }
 
     // 每隔 10 秒自动拉一次云端；回到前台 / 窗口获焦时立刻拉，保证近实时
-    setInterval(() => { if (!document.hidden) autoSync(); }, 10000);
+    setInterval(() => {
+      // 看门狗：万一 pushing 因异常没解开（极端情况），30s 后强制解锁，避免同步永久死锁
+      if (pushing && pushStart && Date.now() - pushStart > 30000) { pushing = false; pushStart = 0; setSyncStatus('同步已自动恢复'); }
+      if (!document.hidden) autoSync();
+    }, 10000);
     document.addEventListener('visibilitychange', () => {
       if (document.hidden) flushNow();   // 切到后台立刻上传，避免被系统挂起后丢失改动
       else autoSync();                   // 回到前台立刻拉取，看到另一端最新
