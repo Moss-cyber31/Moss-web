@@ -596,41 +596,39 @@
   </div><!-- /flex -->
 
   <!-- 同步设置弹窗 -->
-  <div id="sync-modal" class="hidden fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
-    <div class="bg-white rounded-2xl shadow-xl w-full max-w-md p-6 space-y-4">
-      <div class="flex items-center justify-between">
-        <h3 class="text-lg font-bold text-gray-800">🔄 跨设备同步设置</h3>
-        <button onclick="closeSyncSettings()" class="text-gray-400 hover:text-gray-700 text-xl leading-none">✕</button>
+  <div id="sync-modal" class="hidden fixed inset-0 bg-black/40 z-50 overflow-y-auto">
+    <div class="flex min-h-full items-start justify-center p-4">
+      <div class="bg-white rounded-2xl shadow-xl w-full max-w-md my-4 p-5 space-y-3">
+        <div class="flex items-center justify-between sticky top-0 bg-white pb-1">
+          <h3 class="text-base font-bold text-gray-800">🔄 跨设备同步</h3>
+          <button onclick="closeSyncSettings()" class="text-gray-400 hover:text-gray-700 text-2xl leading-none px-1 -mr-1">✕</button>
+        </div>
+        <p class="text-xs text-gray-500 leading-relaxed">手机和电脑填同一套信息即可互通。数据只存在你自己的私人仓库，不经过任何第三方。Token 只存在本机。</p>
+        <div class="grid grid-cols-2 gap-x-3 gap-y-2">
+          <label class="block text-xs text-gray-600">GitHub 用户名
+            <input id="sync-user" class="mt-0.5 w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:ring-2 focus:ring-green-500 focus:outline-none">
+          </label>
+          <label class="block text-xs text-gray-600">数据仓库名
+            <input id="sync-repo" class="mt-0.5 w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:ring-2 focus:ring-green-500 focus:outline-none">
+          </label>
+          <label class="block text-xs text-gray-600">分支
+            <input id="sync-branch" value="main" class="mt-0.5 w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:ring-2 focus:ring-green-500 focus:outline-none">
+          </label>
+          <label class="block text-xs text-gray-600">访问令牌 Token
+            <input id="sync-token" type="password" placeholder="ghp_..." class="mt-0.5 w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:ring-2 focus:ring-green-500 focus:outline-none">
+          </label>
+        </div>
+        <label class="block text-xs text-gray-600">网站仓库（公开 · 生成网址用，可留空）
+          <input id="sync-site-repo" placeholder="例如 moss-web" class="mt-0.5 w-full border border-gray-300 rounded-lg px-2 py-1.5 text-sm focus:ring-2 focus:ring-green-500 focus:outline-none">
+        </label>
+        <label class="flex items-center gap-2 text-sm text-gray-700"><input id="sync-enabled" type="checkbox" class="w-4 h-4"> 启用自动同步（每次改动自动上传）</label>
+        <div class="flex gap-2 pt-1">
+          <button onclick="saveSyncConfig()" class="flex-1 bg-green-700 hover:bg-green-800 text-white rounded-lg py-2 text-sm font-medium transition">保存并同步</button>
+          <button onclick="syncNow()" class="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg py-2 text-sm font-medium transition">立即同步</button>
+        </div>
+        <button onclick="publishSite()" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg py-2 text-sm font-medium transition">🚀 发布到网页（变 APP）</button>
+        <p id="sync-msg" class="text-xs text-gray-500 min-h-[1rem]"></p>
       </div>
-      <p class="text-sm text-gray-500 leading-relaxed">把数据存到你的 GitHub 私人仓库，手机和电脑填同一套信息即可互通。数据只存在你自己的仓库，不经过任何第三方。Token 只保存在你本机浏览器。</p>
-      <label class="block text-sm text-gray-600">GitHub 用户名
-        <input id="sync-user" class="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-green-500 focus:outline-none">
-      </label>
-      <label class="block text-sm text-gray-600">仓库名
-        <input id="sync-repo" class="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-green-500 focus:outline-none">
-      </label>
-      <label class="block text-sm text-gray-600">分支
-        <input id="sync-branch" value="main" class="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-green-500 focus:outline-none">
-      </label>
-      <label class="block text-sm text-gray-600">访问令牌 Token
-        <input id="sync-token" type="password" placeholder="ghp_..." class="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-green-500 focus:outline-none">
-      </label>
-      <div class="rounded-lg bg-amber-50 border border-amber-200 p-3 text-xs text-amber-800 leading-relaxed">
-        ⚠️ 隐私要点：上面那个仓库请保持 <b>私人</b>，只放你的数据。下面「网站仓库」请新建一个 <b>公开</b> 仓库，只放网页文件，用来生成手机/电脑能访问的网址。两个分开，你的笔记就不会被公开。
-      </div>
-      <label class="block text-sm text-gray-600">网站仓库（公开 · 用于生成网址）
-        <input id="sync-site-repo" placeholder="例如 moss-web（公开仓库名）" class="mt-1 w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-green-500 focus:outline-none">
-      </label>
-      <label class="flex items-center gap-2 text-sm text-gray-700"><input id="sync-enabled" type="checkbox" class="w-4 h-4"> 启用同步（开启后每次保存自动上传）</label>
-      <div class="flex gap-2 pt-1">
-        <button onclick="saveSyncConfig()" class="flex-1 bg-green-700 hover:bg-green-800 text-white rounded-lg py-2 font-medium transition">保存设置</button>
-        <button onclick="syncNow()" class="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-lg py-2 font-medium transition">立即同步</button>
-      </div>
-      <div class="border-t border-gray-100 pt-3">
-        <button onclick="publishSite()" class="w-full bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg py-2.5 font-medium transition">🚀 一键发布到网页（变成可安装的 APP）</button>
-        <p class="text-xs text-gray-400 mt-2 leading-relaxed">把工作台和 APP 图标上传到上面的「网站仓库（公开）」，再用 GitHub Pages 生成一个网址。手机「添加到主屏幕」、电脑「安装此应用」即可像 APP 一样打开。发布后请在<b>网站仓库</b>的 Settings → Pages → Source 选 <b>main</b> 分支并保存。</p>
-      </div>
-      <p id="sync-msg" class="text-xs text-gray-500 min-h-[1rem]"></p>
     </div>
   </div>
 
@@ -1521,14 +1519,32 @@
     function bundleLocalData() {
       const o = {};
       SYNC_KEYS.forEach(k => { const v = localStorage.getItem(k); if (v) o[k] = JSON.parse(v); });
+      o.__meta = JSON.parse(localStorage.getItem('mossSyncMeta') || '{}');
       return o;
     }
     function applyRemoteData(obj) {
-      if (obj.mossTasks !== undefined) { localStorage.setItem('mossTasks', JSON.stringify(obj.mossTasks)); tasks = obj.mossTasks; }
-      if (obj.mossClimb !== undefined) { localStorage.setItem('mossClimb', JSON.stringify(obj.mossClimb)); mossData = obj.mossClimb; }
-      if (obj.mossLitArchive !== undefined) { localStorage.setItem('mossLitArchive', JSON.stringify(obj.mossLitArchive)); litArchive = obj.mossLitArchive; }
-      if (obj.mossLanguages !== undefined) { localStorage.setItem('mossLanguages', JSON.stringify(obj.mossLanguages)); languages = obj.mossLanguages; }
-      if (obj.mossExercise !== undefined) { localStorage.setItem('mossExercise', JSON.stringify(obj.mossExercise)); exerciseData = obj.mossExercise; }
+      applyingRemote = true;
+      const localMeta = JSON.parse(localStorage.getItem('mossSyncMeta') || '{}');
+      const remoteMeta = obj.__meta || null; // null = 旧格式（无时间戳），一律采用远程
+      const assign = {
+        mossTasks: () => { tasks = obj.mossTasks; },
+        mossClimb: () => { mossData = obj.mossClimb; },
+        mossLitArchive: () => { litArchive = obj.mossLitArchive; },
+        mossLanguages: () => { languages = obj.mossLanguages; },
+        mossExercise: () => { exerciseData = obj.mossExercise; }
+      };
+      SYNC_KEYS.forEach(k => {
+        if (obj[k] === undefined) return;
+        const rTs = remoteMeta ? (remoteMeta[k] || 0) : Infinity;
+        const lTs = localMeta[k] || 0;
+        if (rTs >= lTs) {
+          localStorage.setItem(k, JSON.stringify(obj[k]));
+          localMeta[k] = remoteMeta ? rTs : Date.now();
+          if (assign[k]) assign[k]();
+        }
+      });
+      localStorage.setItem('mossSyncMeta', JSON.stringify(localMeta));
+      applyingRemote = false;
     }
 
     async function ghRequest(c, method, body) {
@@ -1545,7 +1561,7 @@
 
     async function pushBundle(bundle) {
       const c = getSyncConfig();
-      if (!c.enabled || !c.token || !c.username || !c.repo) return;
+      if (!c.token || !c.username || !c.repo) return;
       let sha; try { const r = await ghRequest(c, 'GET'); if (r) sha = r.sha; } catch (e) {}
       const content = b64encode(JSON.stringify(bundle));
       try {
@@ -1571,22 +1587,20 @@
 
     async function syncNow() {
       const c = getSyncConfig();
-      if (!c.enabled || !c.token || !c.username || !c.repo) { setSyncMsg('请先填写并保存同步设置，并勾选启用。'); return; }
+      if (!c.token || !c.username || !c.repo) { setSyncMsg('请先填写并保存同步设置（用户名 / 数据仓库名 / Token）。'); return; }
       setSyncStatus('同步中…'); setSyncMsg('');
-      let remote = null;
-      try { remote = await ghRequest(c, 'GET'); } catch (e) { setSyncStatus('拉取失败'); setSyncMsg('拉取失败：' + friendlyErr(e)); return; }
-      const local = bundleLocalData(); local.__updatedAt = Date.now();
-      if (remote && remote.content) {
-        try {
+      try {
+        const remote = await ghRequest(c, 'GET');
+        if (remote && remote.content) {
           const robj = JSON.parse(b64decode(remote.content));
-          if (robj.__updatedAt && robj.__updatedAt > local.__updatedAt) {
-            applyingRemote = true; applyRemoteData(robj); applyingRemote = false;
-            if (typeof filterTasks === 'function') filterTasks(currentFilter || 'dashboard');
-            setSyncStatus('已拉取远程 ' + new Date().toLocaleTimeString()); setSyncMsg('远程数据较新，已下载到本机。'); return;
-          }
-        } catch (e) {}
-      }
-      pushBundle(local); setSyncMsg('已上传本地数据到仓库。');
+          applyRemoteData(robj); // 按模块合并到本地
+          setSyncStatus('已合并 ' + new Date().toLocaleTimeString());
+        }
+        const b = bundleLocalData();
+        pushBundle(b); // 把合并结果上传，两端尽快一致
+        setSyncMsg('已与仓库同步（手机和电脑各自的最新改动都会保留，不会互相覆盖）。');
+        if (typeof filterTasks === 'function') filterTasks(currentFilter || 'dashboard');
+      } catch (e) { setSyncStatus('同步失败'); setSyncMsg('同步失败：' + friendlyErr(e)); }
     }
 
     // 一键发布：把页面 + PWA 文件上传到「网站仓库（公开）」，与私人数据仓库分离
@@ -1631,7 +1645,17 @@
     }
     (function overrideSetItem() {
       const orig = Storage.prototype.setItem;
-      Storage.prototype.setItem = function (k, v) { orig.call(this, k, v); if (SYNC_KEYS.includes(k)) schedulePush(); };
+      Storage.prototype.setItem = function (k, v) {
+        orig.call(this, k, v);
+        if (SYNC_KEYS.includes(k)) {
+          try {
+            const m = JSON.parse(localStorage.getItem('mossSyncMeta') || '{}');
+            m[k] = Date.now();
+            orig.call(this, 'mossSyncMeta', JSON.stringify(m));
+          } catch (e) {}
+          schedulePush();
+        }
+      };
     })();
 
     function openSyncSettings() {
@@ -1657,8 +1681,8 @@
         filename: SYNC_FILE
       };
       localStorage.setItem('mossSyncConfig', JSON.stringify(c));
-      setSyncMsg(c.enabled ? '设置已保存，已启用同步。' : '设置已保存（未启用）。');
-      if (c.enabled) syncNow();
+      setSyncMsg('设置已保存，正在同步…');
+      syncNow();
     }
 
     function initSync() {
