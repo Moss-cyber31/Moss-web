@@ -93,7 +93,7 @@
         </header>
 
         <!-- ========== 仪表盘（首页网格卡片） ========== -->
-        <div id="dashboard-view" class="px-5 space-y-4">
+        <div id="dashboard-view" class="px-5 pb-24 space-y-4">
 
           <!-- 欢迎横幅 -->
           <div class="bg-white rounded-3xl p-5 shadow-sm flex items-start gap-4 dashboard-card">
@@ -727,13 +727,11 @@
           const li = document.createElement('li');
           li.className = 'task-row flex items-center gap-4 px-2 py-4 rounded-xl';
           li.innerHTML = `
-            <input type="checkbox" class="task-checkbox w-5 h-5 text-green-600 rounded focus:ring-green-500 cursor-pointer"
-              ${task.completed ? 'checked' : ''} onchange="toggleTask(${task.id})">
-            <div class="flex-1 ${task.completed ? 'line-through text-gray-400' : 'text-gray-700'}">
+            <div class="flex-1 text-gray-700">
               <span class="font-medium">${escapeHtml(task.text)}</span>
               <span class="ml-2 text-xs px-2 py-1 rounded-full bg-amber-100 text-amber-600">✨ 灵感</span>
             </div>
-            <button onclick="deleteTask(${task.id})" class="text-gray-400 hover:text-red-500 transition px-2">✕</button>`;
+            <button onclick="deleteTask(${task.id})" class="text-gray-400 hover:text-red-500 transition px-2 shrink-0" title="删除这条灵感">✕</button>`;
           listEl.appendChild(li);
         });
       }
@@ -1291,6 +1289,14 @@
       saveLanguages(); renderLanguageList();
     }
 
+    function deleteLanguage(id) {
+      const l = languages.find(x => x.id === id);
+      if (!l) return;
+      if (!confirm('确定删除「' + (l.name || '') + '」这门语言及其所有任务？')) return;
+      languages = languages.filter(x => x.id !== id);
+      saveLanguages(); renderLanguageList();
+    }
+
     function renderLanguageList() {
       const cards = document.getElementById('lang-cards');
       const empty = document.getElementById('lang-empty');
@@ -1305,7 +1311,10 @@
         div.onclick = () => openLanguage(l.id);
         div.innerHTML = '<div class="flex items-center justify-between">' +
             '<h3 class="text-lg font-bold text-gray-800">' + escapeHtml(l.name) + '</h3>' +
-            '<span class="text-xs px-2 py-1 rounded-full bg-orange-50 text-orange-600">🔥 ' + (l.streak || 0) + ' 天</span>' +
+            '<div class="flex items-center gap-2 shrink-0">' +
+              '<span class="text-xs px-2 py-1 rounded-full bg-orange-50 text-orange-600">🔥 ' + (l.streak || 0) + ' 天</span>' +
+              '<button onclick="event.stopPropagation(); deleteLanguage(' + l.id + ')" class="text-gray-400 hover:text-red-500 transition px-1" title="删除这门语言">✕</button>' +
+            '</div>' +
           '</div>' +
           '<p class="text-gray-500 text-sm mt-2">' + (total ? (done + '/' + total + ' 项完成 · ' + pct + '%') : '还没有任务，点进去添加') + '</p>';
         cards.appendChild(div);
@@ -1529,8 +1538,10 @@
       const before = SYNC_KEYS.map(k => localStorage.getItem(k)).join(' ');
       const localMeta = JSON.parse(localStorage.getItem('mossSyncMeta') || '{}');
       const remoteMeta = obj.__meta || null;
+      let keptLocal = false; // 本次合并是否有“本机刚改、压过云端”的键，需要立即回传云端
       SYNC_KEYS.forEach(k => {
         if (obj[k] === undefined) return;
+        const justEdited = (Date.now() - (recentEdit[k] || 0)) < 120000; // 本机 120 秒内刚改过 → 这次合并不让云端旧值覆盖本机
         if (k === 'mossTasks' || k === 'mossLanguages') {
           // 数组型：按 id 取并集，两端独有的都保留，不互相覆盖
           const arr = JSON.parse(localStorage.getItem(k) || '[]');
@@ -1543,25 +1554,32 @@
           if (k === 'mossLanguages') languages = merged;
           localMeta[k] = Math.max(localMeta[k] || 0, (remoteMeta && remoteMeta[k]) || 0, Date.now());
         } else if (k === 'mossLitArchive') {
-          // 对象型：按周 key 浅合并，两端不同周的记录都保留
+          // 对象型：同一周被两端都改时，按时间戳后写覆盖（谁后改谁赢）；不同周都保留
           const local = JSON.parse(localStorage.getItem(k) || '{}');
-          const merged = Object.assign({}, local, obj[k]);
+          const rTs = remoteMeta ? (remoteMeta[k] || 0) : 0;
+          const lTs = localMeta[k] || 0;
+          // 本机刚改过则本机赢（云端旧值不能覆盖）；否则按时间戳后写覆盖
+          const merged = (justEdited || rTs > lTs) ? Object.assign({}, obj[k], local) : Object.assign({}, local, obj[k]);
+          if (justEdited) keptLocal = true;
           localStorage.setItem(k, JSON.stringify(merged));
           litArchive = merged;
-          localMeta[k] = Math.max(localMeta[k] || 0, (remoteMeta && remoteMeta[k]) || 0, Date.now());
+          localMeta[k] = Math.max(lTs, rTs, Date.now());
         } else {
           // 单体型：时间戳更新的覆盖
           const rTs = remoteMeta ? (remoteMeta[k] || 0) : Infinity;
           const lTs = localMeta[k] || 0;
-          if (rTs >= lTs) {
+          if (!justEdited && rTs >= lTs) {
             localStorage.setItem(k, JSON.stringify(obj[k]));
             if (k === 'mossClimb') mossData = obj[k];
             if (k === 'mossExercise') exerciseData = obj[k];
             localMeta[k] = remoteMeta ? rTs : Date.now();
+          } else if (justEdited) {
+            keptLocal = true; // 本机刚改过，保留本地值，稍后回传云端
           }
         }
       });
       localStorage.setItem('mossSyncMeta', JSON.stringify(localMeta));
+      if (keptLocal) dirty = true; // 本机刚改的内容压过了云端，立即回传云端，避免被旧值反咬
       applyingRemote = false;
       const after = SYNC_KEYS.map(k => localStorage.getItem(k)).join(' ');
       return after !== before;
@@ -1724,9 +1742,13 @@
 
     let pushing = false;
     let dirty = false;
+    const recentEdit = {}; // 记录本机最近一次手动编辑时间，用于“编辑锁”
 
     // 一键重渲染所有模块（拉取远端数据后调用，保证 UI 立即刷新）
     function renderAll() {
+      // 正在输入框打字时不重绘，避免输入框被重建 → 出现“突然跳回原界面”
+      const ae = document.activeElement;
+      if (ae && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA')) return;
       try { if (typeof filterTasks === 'function') filterTasks(currentFilter || 'dashboard'); } catch (e) {}
       try { if (typeof renderLiterature === 'function') renderLiterature(); } catch (e) {}
       try { if (typeof renderClimb === 'function') renderClimb(); } catch (e) {}
@@ -1787,10 +1809,11 @@
           try {
             const m = JSON.parse(localStorage.getItem('mossSyncMeta') || '{}');
             m[k] = Date.now();
-            orig.call(this, 'mossSyncMeta', JSON.stringify(m));
-          } catch (e) {}
-          schedulePush();
-        }
+          orig.call(this, 'mossSyncMeta', JSON.stringify(m));
+        } catch (e) {}
+        if (!applyingRemote) recentEdit[k] = Date.now(); // 标记本机刚手动改过
+        schedulePush();
+      }
       };
     })();
 
