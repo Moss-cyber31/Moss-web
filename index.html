@@ -1286,6 +1286,8 @@
       }
       if (!Array.isArray(l.weeklyTasks)) l.weeklyTasks = [];
     });
+    // 启动时就把本地已有的同名语言合并掉（之前只在远程合并时跑，导致已有重复一直晾在那）
+    dedupLanguages();
 
     function saveLanguages() {
       const prev = JSON.parse(localStorage.getItem('mossLanguages') || '[]');
@@ -1360,7 +1362,7 @@
       document.getElementById('lang-input-hint').classList.add('hidden');
       languages.push({ id: Date.now(), name, weeklyTasks: defaultWeeklyTasks(), streak: 0, lastCheckin: '', checkins: {}, _ts: Date.now(), _del: false });
       input.value = '';
-      saveLanguages(); renderLanguageList();
+      saveLanguages(); dedupLanguages(); renderLanguageList();
     }
 
     function deleteLanguage(id) {
