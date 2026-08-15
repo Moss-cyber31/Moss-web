@@ -674,9 +674,14 @@
       const t = tasks.find(x => x.id === id);
       if (t) { t.completed = !t.completed; saveTasks(); renderTasks(); }
     }
-    function deleteTask(id) {
+    async function deleteTask(id) {
       const t = tasks.find(x => x.id === id);
-      if (t) { t._del = true; t._ts = Date.now(); } // 标记删除（带时间戳），随同步传播到另一端，不会复活
+      if (!t) return;
+      // 灵感记录容易误触，删除前必须确认；其它任务保持原样即时删除
+      if (t.category === 'inspiration') {
+        if (!await confirmDialog('确定删除这条灵感记录？')) return;
+      }
+      t._del = true; t._ts = Date.now(); // 标记删除（带时间戳）
       saveTasks();
       renderTasks();
       // 灵感记录也可能被删除，必须同时刷新灵感列表，否则点了✕还在（看起来“删不掉”）
@@ -1302,11 +1307,30 @@
       saveLanguages(); dedupLanguages(); renderLanguageList();
     }
 
-    function deleteLanguage(id) {
+    // 自定义确认弹窗（返回 Promise）。不依赖原生 confirm()，在 iOS 主屏幕 PWA 里也能正常弹。
+    function confirmDialog(message) {
+      return new Promise(resolve => {
+        const overlay = document.getElementById('confirm-overlay');
+        const msgEl = document.getElementById('confirm-msg');
+        const okBtn = document.getElementById('confirm-ok');
+        const cancelBtn = document.getElementById('confirm-cancel');
+        msgEl.textContent = message;
+        overlay.classList.remove('hidden');
+        function cleanup(result) {
+          overlay.classList.add('hidden');
+          okBtn.onclick = null; cancelBtn.onclick = null;
+          resolve(result);
+        }
+        okBtn.onclick = () => cleanup(true);
+        cancelBtn.onclick = () => cleanup(false);
+      });
+    }
+
+    async function deleteLanguage(id) {
       const l = languages.find(x => x.id === id);
       if (!l) return;
-      if (!confirm('确定删除「' + (l.name || '') + '」这门语言及其所有任务？')) return;
-      l._del = true; l._ts = Date.now(); // 标记删除（带时间戳），随同步传播到另一端
+      if (!await confirmDialog('确定删除「' + (l.name || '') + '」这门语言及其所有任务？')) return;
+      l._del = true; l._ts = Date.now(); // 标记删除（带时间戳）
       saveLanguages(); renderLanguageList();
     }
 
@@ -1549,5 +1573,17 @@
       });
     }
   </script>
+
+  <!-- 自定义确认弹窗：iOS 把网页加到主屏幕当 APP 用时，原生 confirm() 不弹窗，必须用页面内弹窗 -->
+  <div id="confirm-overlay" class="hidden fixed inset-0 bg-black/40 flex items-center justify-center z-[60] px-6">
+    <div class="bg-white rounded-2xl p-5 w-full max-w-xs shadow-xl">
+      <p id="confirm-msg" class="text-gray-800 text-sm leading-relaxed mb-5"></p>
+      <div class="flex gap-3">
+        <button id="confirm-cancel" class="flex-1 px-4 py-2.5 rounded-xl bg-gray-100 text-gray-600 font-medium hover:bg-gray-200 transition">取消</button>
+        <button id="confirm-ok" class="flex-1 px-4 py-2.5 rounded-xl bg-red-600 text-white font-medium hover:bg-red-700 transition">删除</button>
+      </div>
+    </div>
+  </div>
+
 </body>
 </html>
