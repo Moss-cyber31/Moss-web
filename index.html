@@ -465,10 +465,10 @@
 
                 <div class="bg-white rounded-3xl shadow-sm p-5">
                   <div class="flex items-center justify-between mb-3">
-                    <h2 class="text-lg font-bold text-gray-800">📅 今日计划（参考）</h2>
+                    <h2 class="text-lg font-bold text-gray-800">📅 今日任务</h2>
                     <span class="text-xs text-gray-400" id="today-weekday-label"></span>
                   </div>
-                  <p class="text-xs text-gray-400 mb-2">今天该学的都在「本周计划」里，照着学就行，不用逐条打勾</p>
+                  <p class="text-xs text-gray-400 mb-2">今天该学的，逐条打勾；这只是每日记录，不影响下面的「本周计划」</p>
                   <ul id="langtask-today" class="divide-y divide-gray-100"></ul>
                   <div id="langtask-today-empty" class="hidden text-center py-8 text-gray-400">
                     <p class="text-sm">今天没有安排的任务</p>
@@ -1397,20 +1397,19 @@
         btn.classList.remove('bg-green-100', 'text-green-700', 'cursor-default');
       }
 
-      // 今日计划（只读参考）：今天该学的任务，不做勾选
+      // 今日任务：逐条打勾（每日完成记录，独立于本周计划，不影响本周计划显示）
       const wd = new Date().getDay();
       document.getElementById('today-weekday-label').textContent = '星期' + WEEK_DAY_LABELS[wd];
       const todayTasks = l.weeklyTasks.filter(t => !t.days || t.days.length === 0 || t.days.includes(wd));
+      const doneToday = (l.dailyDone && l.dailyDone[today]) || [];
       const ulToday = document.getElementById('langtask-today');
       ulToday.innerHTML = '';
       todayTasks.forEach(t => {
         const li = document.createElement('li');
         li.className = 'flex items-center gap-3 py-3';
-        const dayBadges = (t.days && t.days.length)
-          ? t.days.map(d => '<span class="text-[10px] px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-500">' + WEEK_DAY_LABELS[d] + '</span>').join('')
-          : '<span class="text-[10px] px-1.5 py-0.5 rounded-full bg-green-50 text-green-600">每天</span>';
-        li.innerHTML = '<span class="flex-1 text-gray-700">' + escapeHtml(t.text) + '</span>' +
-          '<span class="flex gap-1 flex-wrap max-w-[42%] justify-end">' + dayBadges + '</span>';
+        const doneNow = doneToday.includes(t.id);
+        li.innerHTML = '<input type="checkbox" ' + (doneNow ? 'checked' : '') + ' onchange="toggleTodayTask(' + t.id + ')" class="w-5 h-5 text-green-600 rounded focus:ring-green-500 cursor-pointer">' +
+          '<span class="flex-1 ' + (doneNow ? 'line-through text-gray-400' : 'text-gray-700') + '">' + escapeHtml(t.text) + '</span>';
         ulToday.appendChild(li);
       });
       document.getElementById('langtask-today-empty').classList.toggle('hidden', todayTasks.length > 0);
@@ -1432,6 +1431,20 @@
       });
       document.getElementById('langtask-empty').classList.toggle('hidden', l.weeklyTasks.length > 0);
       updateDashboard();
+    }
+
+    // 今日任务逐条打勾（每日完成记录，独立存于 dailyDone[日期]，绝不影响本周计划）
+    function toggleTodayTask(id) {
+      const l = getActiveLang();
+      if (!l) return;
+      if (!l.dailyDone) l.dailyDone = {};
+      const today = new Date().toISOString().slice(0, 10);
+      if (!l.dailyDone[today]) l.dailyDone[today] = [];
+      const arr = l.dailyDone[today];
+      const idx = arr.indexOf(id);
+      if (idx >= 0) arr.splice(idx, 1);
+      else arr.push(id);
+      saveLanguages(); renderLanguageDetail();
     }
 
     // 连续天数：直接根据 checkins 历史倒推连续打卡天数（更稳，不受 lastCheckin 比较误差影响）
