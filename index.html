@@ -456,37 +456,35 @@
                       <p class="text-gray-500 text-sm mt-1"><span id="lang-streak-label">🔥 连续学习 0 天</span> · <span id="lang-checkin-label">今日未打卡</span></p>
                     </div>
                     <div class="text-right">
-                      <p class="text-2xl font-bold text-green-700" id="lang-progress-percent">0%</p>
-                      <p class="text-gray-500 text-xs"><span id="lang-completed">0</span> / <span id="lang-total">0</span> 已完成</p>
+                      <p class="text-2xl font-bold text-green-700"><span id="lang-total">0</span></p>
+                      <p class="text-gray-500 text-xs">项本周计划</p>
                     </div>
-                  </div>
-                  <div class="w-full bg-gray-100 rounded-full h-3 mt-4">
-                    <div id="lang-progress-bar" class="bg-gradient-to-r from-green-500 to-green-700 h-3 rounded-full transition-all" style="width:0%"></div>
                   </div>
                   <button id="lang-checkin-btn" onclick="checkInLanguage()" class="mt-4 w-full bg-green-700 hover:bg-green-800 text-white rounded-2xl py-3 font-bold transition">✅ 学完打卡</button>
                 </div>
 
                 <div class="bg-white rounded-3xl shadow-sm p-5">
                   <div class="flex items-center justify-between mb-3">
-                    <h2 class="text-lg font-bold text-gray-800">🌅 今日任务</h2>
+                    <h2 class="text-lg font-bold text-gray-800">📅 今日计划（参考）</h2>
                     <span class="text-xs text-gray-400" id="today-weekday-label"></span>
                   </div>
-                  <p class="text-xs text-gray-400 mb-2">一睁眼就照着做，做完打勾；每周自动重置</p>
+                  <p class="text-xs text-gray-400 mb-2">今天该学的都在「本周计划」里，照着学就行，不用逐条打勾</p>
                   <ul id="langtask-today" class="divide-y divide-gray-100"></ul>
                   <div id="langtask-today-empty" class="hidden text-center py-8 text-gray-400">
-                    <p class="text-sm">今天没有安排的任务，去「本周计划」里加一个吧</p>
+                    <p class="text-sm">今天没有安排的任务</p>
                   </div>
                 </div>
 
                 <div class="bg-white rounded-3xl shadow-sm p-5">
                   <div class="flex items-center justify-between mb-4">
-                    <h2 class="text-lg font-bold text-gray-800">📋 本周计划</h2>
-                    <button onclick="openLangTaskModal()" class="text-sm bg-green-50 text-green-700 hover:bg-green-100 rounded-2xl px-4 py-2 font-medium transition">＋ 编辑计划</button>
+                    <h2 class="text-lg font-bold text-gray-800">📋 本周计划（可编辑）</h2>
+                    <button onclick="openLangTaskModal()" class="text-sm bg-green-50 text-green-700 hover:bg-green-100 rounded-2xl px-4 py-2 font-medium transition">＋ 添加任务</button>
                   </div>
+                  <p class="text-xs text-gray-400 mb-2">这是你的学习计划清单，可随时编辑 / 删除，但不计入每日打卡</p>
                   <ul id="langtask-list" class="divide-y divide-gray-100"></ul>
                   <div id="langtask-empty" class="hidden text-center py-10 text-gray-400">
                     <p class="text-3xl mb-2">📝</p>
-                    <p class="text-sm">还没有周计划，点「编辑计划」把这一周要做的都排好</p>
+                    <p class="text-sm">还没有计划，点「添加任务」把这一周要学的排好</p>
                   </div>
                 </div>
               </div>
@@ -595,8 +593,8 @@
   <!-- 编辑每周语言任务弹窗 -->
   <div id="langtask-modal" class="hidden fixed inset-0 bg-black/30 flex items-center justify-center z-50" onclick="closeLangTaskModal()">
     <div class="bg-white rounded-2xl p-6 w-full max-w-md mx-4 shadow-xl" onclick="event.stopPropagation()">
-      <h3 class="text-lg font-bold text-gray-800 mb-1">添加每周任务</h3>
-      <p class="text-xs text-gray-400 mb-4">排好这一周要做的，每周自动重置，每天直接照做</p>
+      <h3 id="langtask-modal-title" class="text-lg font-bold text-gray-800 mb-1">添加每周任务</h3>
+      <p class="text-xs text-gray-400 mb-4">写好这一周要学的计划，可随时回来编辑 / 删除</p>
       <input id="langtask-input" type="text" placeholder="例如：背 20 个单词 / 练听力 15 分钟"
         onkeydown="if(event.key==='Enter')confirmLangTaskModal()"
         class="w-full border border-gray-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-green-500">
@@ -1339,10 +1337,7 @@
       const empty = document.getElementById('lang-empty');
       cards.innerHTML = '';
       languages.forEach(l => { if (l._del) return;
-        const wk = getWeekKey();
-        const done = l.weeklyTasks.filter(t => t.doneWeek === wk).length;
         const total = l.weeklyTasks.length;
-        const pct = total ? Math.round(done / total * 100) : 0;
         const div = document.createElement('div');
         div.className = 'bg-white rounded-3xl shadow-sm p-4 cursor-pointer hover:shadow-md transition border border-transparent hover:border-green-200';
         div.onclick = () => openLanguage(l.id);
@@ -1353,7 +1348,7 @@
               '<button onclick="event.stopPropagation(); deleteLanguage(' + l.id + ')" class="text-gray-400 hover:text-red-500 transition px-1" title="删除这门语言">✕</button>' +
             '</div>' +
           '</div>' +
-          '<p class="text-gray-500 text-sm mt-2">' + (total ? (done + '/' + total + ' 项完成 · ' + pct + '%') : '还没有任务，点进去添加') + '</p>';
+          '<p class="text-gray-500 text-sm mt-2">' + (total ? (total + ' 项计划') : '还没有计划，点进去添加') + '</p>';
         cards.appendChild(div);
       });
       const liveLangCount = languages.filter(l => !l._del).length;
@@ -1389,14 +1384,7 @@
       document.getElementById('lang-streak-label').textContent = '🔥 连续学习 ' + (l.streak || 0) + ' 天';
       document.getElementById('lang-checkin-label').textContent = checkedToday ? '今日已打卡 ✓' : '今日未打卡';
 
-      const wk = getWeekKey();
-      const done = l.weeklyTasks.filter(t => t.doneWeek === wk).length;
-      const total = l.weeklyTasks.length;
-      const pct = total ? Math.round(done / total * 100) : 0;
-      document.getElementById('lang-completed').textContent = done;
-      document.getElementById('lang-total').textContent = total;
-      document.getElementById('lang-progress-percent').textContent = pct + '%';
-      document.getElementById('lang-progress-bar').style.width = pct + '%';
+      document.getElementById('lang-total').textContent = l.weeklyTasks.length;
 
       const btn = document.getElementById('lang-checkin-btn');
       if (checkedToday) {
@@ -1409,7 +1397,7 @@
         btn.classList.remove('bg-green-100', 'text-green-700', 'cursor-default');
       }
 
-      // 今日任务：只显示今天该做的
+      // 今日计划（只读参考）：今天该学的任务，不做勾选
       const wd = new Date().getDay();
       document.getElementById('today-weekday-label').textContent = '星期' + WEEK_DAY_LABELS[wd];
       const todayTasks = l.weeklyTasks.filter(t => !t.days || t.days.length === 0 || t.days.includes(wd));
@@ -1418,39 +1406,45 @@
       todayTasks.forEach(t => {
         const li = document.createElement('li');
         li.className = 'flex items-center gap-3 py-3';
-        const doneNow = langWeekDone(t);
-        li.innerHTML = '<input type="checkbox" ' + (doneNow ? 'checked' : '') + ' onchange="toggleLangTask(' + t.id + ')" class="w-5 h-5 text-green-600 rounded focus:ring-green-500 cursor-pointer">' +
-          '<span class="flex-1 ' + (doneNow ? 'line-through text-gray-400' : 'text-gray-700') + '">' + escapeHtml(t.text) + '</span>';
+        const dayBadges = (t.days && t.days.length)
+          ? t.days.map(d => '<span class="text-[10px] px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-500">' + WEEK_DAY_LABELS[d] + '</span>').join('')
+          : '<span class="text-[10px] px-1.5 py-0.5 rounded-full bg-green-50 text-green-600">每天</span>';
+        li.innerHTML = '<span class="flex-1 text-gray-700">' + escapeHtml(t.text) + '</span>' +
+          '<span class="flex gap-1 flex-wrap max-w-[42%] justify-end">' + dayBadges + '</span>';
         ulToday.appendChild(li);
       });
       document.getElementById('langtask-today-empty').classList.toggle('hidden', todayTasks.length > 0);
 
-      // 本周计划：全部任务
+      // 本周计划（可编辑清单）：编辑 / 删除，不打卡
       const ul = document.getElementById('langtask-list');
       ul.innerHTML = '';
       l.weeklyTasks.forEach(t => {
         const li = document.createElement('li');
         li.className = 'flex items-center gap-3 py-3';
-        const doneNow = langWeekDone(t);
         const dayBadges = (t.days && t.days.length)
           ? t.days.map(d => '<span class="text-[10px] px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-500">' + WEEK_DAY_LABELS[d] + '</span>').join('')
           : '<span class="text-[10px] px-1.5 py-0.5 rounded-full bg-green-50 text-green-600">每天</span>';
-        li.innerHTML = '<input type="checkbox" ' + (doneNow ? 'checked' : '') + ' onchange="toggleLangTask(' + t.id + ')" class="w-5 h-5 text-green-600 rounded focus:ring-green-500 cursor-pointer">' +
-          '<span class="flex-1 ' + (doneNow ? 'line-through text-gray-400' : 'text-gray-700') + '">' + escapeHtml(t.text) + '</span>' +
-          '<span class="flex gap-1 flex-wrap max-w-[42%] justify-end">' + dayBadges + '</span>' +
-          '<button onclick="deleteLangTask(' + t.id + ')" class="text-gray-400 hover:text-red-500 px-1 transition">✕</button>';
+        li.innerHTML = '<span class="flex-1 text-gray-700">' + escapeHtml(t.text) + '</span>' +
+          '<span class="flex gap-1 flex-wrap max-w-[34%] justify-end">' + dayBadges + '</span>' +
+          '<button onclick="editLangTaskModal(' + t.id + ')" class="text-gray-400 hover:text-green-600 px-1 transition" title="编辑">✏️</button>' +
+          '<button onclick="deleteLangTask(' + t.id + ')" class="text-gray-400 hover:text-red-500 px-1 transition" title="删除">✕</button>';
         ul.appendChild(li);
       });
       document.getElementById('langtask-empty').classList.toggle('hidden', l.weeklyTasks.length > 0);
       updateDashboard();
     }
 
-    function updateStreak(l) {
-      const today = new Date().toISOString().slice(0, 10);
-      if (l.lastCheckin === today) return;
-      const yday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
-      l.streak = (l.lastCheckin === yday) ? (l.streak || 0) + 1 : 1;
-      l.lastCheckin = today;
+    // 连续天数：直接根据 checkins 历史倒推连续打卡天数（更稳，不受 lastCheckin 比较误差影响）
+    function computeStreak(l) {
+      if (!l.checkins) l.checkins = {};
+      let streak = 0;
+      let d = new Date();
+      if (!l.checkins[d.toISOString().slice(0, 10)]) d.setDate(d.getDate() - 1);
+      while (l.checkins[d.toISOString().slice(0, 10)]) {
+        streak++;
+        d.setDate(d.getDate() - 1);
+      }
+      return streak;
     }
 
     function checkInLanguage() {
@@ -1460,7 +1454,8 @@
       if (!l.checkins) l.checkins = {};
       if (l.checkins[today]) { alert('今天已经打卡啦，明天再来～'); return; }
       l.checkins[today] = true;
-      updateStreak(l);
+      l.streak = computeStreak(l);
+      l.lastCheckin = today;
       saveLanguages(); renderLanguageDetail();
     }
 
@@ -1473,21 +1468,31 @@
       saveLanguages(); renderLanguageDetail();
     }
 
-    function toggleLangTask(id) {
+    function editLangTaskModal(id) {
       const l = getActiveLang();
       if (!l) return;
       const t = l.weeklyTasks.find(x => x.id === id);
-      if (t) { t.doneWeek = langWeekDone(t) ? '' : getWeekKey(); saveLanguages(); renderLanguageDetail(); }
+      if (!t) return;
+      editingLangTaskId = id;
+      document.getElementById('langtask-input').value = t.text || '';
+      tempLangDays = (t.days && t.days.length) ? t.days.slice() : [];
+      renderLangDayChips();
+      const titleEl = document.getElementById('langtask-modal-title');
+      if (titleEl) titleEl.textContent = '编辑每周任务';
+      document.getElementById('langtask-modal').classList.remove('hidden');
+      document.getElementById('langtask-input').focus();
     }
 
-    function deleteLangTask(id) {
+    async function deleteLangTask(id) {
       const l = getActiveLang();
       if (!l) return;
+      if (!await confirmDialog('确定删除这条计划任务？')) return;
       l.weeklyTasks = l.weeklyTasks.filter(x => x.id !== id);
       saveLanguages(); renderLanguageDetail();
     }
 
     let tempLangDays = [0,1,2,3,4,5,6];
+    let editingLangTaskId = null;
     function renderLangDayChips() {
       const box = document.getElementById('langtask-days');
       if (!box) return;
@@ -1511,7 +1516,10 @@
       const input = document.getElementById('langtask-input');
       input.value = '';
       tempLangDays = [0,1,2,3,4,5,6];
+      editingLangTaskId = null;
       renderLangDayChips();
+      const titleEl = document.getElementById('langtask-modal-title');
+      if (titleEl) titleEl.textContent = '添加每周任务';
       document.getElementById('langtask-modal').classList.remove('hidden');
       input.focus();
     }
@@ -1522,8 +1530,16 @@
       const input = document.getElementById('langtask-input');
       const text = input.value.trim();
       if (!text) { input.focus(); return; }
-      addLangWeeklyTask(text, tempLangDays.slice());
+      const l = getActiveLang();
+      if (editingLangTaskId && l) {
+        const t = l.weeklyTasks.find(x => x.id === editingLangTaskId);
+        if (t) { t.text = text; t.days = tempLangDays.slice(); }
+        editingLangTaskId = null;
+      } else {
+        addLangWeeklyTask(text, tempLangDays.slice());
+      }
       closeLangTaskModal();
+      if (l) renderLanguageDetail();
     }
 
     document.getElementById('new-lang-input').addEventListener('keydown', e => { if (e.key === 'Enter') addLanguage(); });
